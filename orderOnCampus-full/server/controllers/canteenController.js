@@ -34,7 +34,7 @@ exports.registerCanteen = async (req, res) => {
 //get canteens
 exports.getAllCanteens = async (req, res) => {
     try {
-        const canteens = await Canteen.find().populate('menu');
+        const canteens = await Canteen.find().select('-orders').populate('menu');
         // console.log(canteens)
         res.send({ status: "ok", data: canteens })
     } catch (error) {
@@ -47,7 +47,7 @@ exports.getAllCanteens = async (req, res) => {
 exports.getcanteenById = async (req, res) => {
     const {canteenID} = req.params
     try {
-        const canteen = await Canteen.findById(canteenID).populate('orders')
+        const canteen = await Canteen.findById(canteenID).select('-orders').populate('menu')
         res.send({ status: "ok", data: canteen })
     } catch (error) {
         console.error(error);

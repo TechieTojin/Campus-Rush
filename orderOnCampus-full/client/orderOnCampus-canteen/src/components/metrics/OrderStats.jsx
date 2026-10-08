@@ -21,9 +21,9 @@ function OrderStats({ userData }) {
         try {
           const canteenId = userData.ownedCanteens[0]._id;
           const response = await axios.get(
-            `http://localhost:5001/canteens/${canteenId}/get-canteen`
+            `http://localhost:5001/canteen/${canteenId}/orders`
           );
-          const orders = response.data.data.orders;
+          const orders = response.data.data;
 
           // Group orders by time periods
           const groupedOrders = groupOrdersByTimePeriods(orders);

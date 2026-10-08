@@ -28,13 +28,13 @@ function OrderComponent() {
   }, [triggerRender]);
 
   useEffect(() => {
-    if (userData && userData.ownedCanteens) {
+    if (userData && userData.ownedCanteens && userData.ownedCanteens.length > 0) {
       const getCanteenOrders = async () => {
         try {
           const res = await axios.get(
-            `http://localhost:5001/canteens/${userData.ownedCanteens[0]._id}/get-canteen`
+            `http://localhost:5001/canteen/${userData.ownedCanteens[0]._id}/orders`
           );
-          setOrders(res.data.data.orders);
+          setOrders(res.data.data);
         } catch (err) {
           console.log(err);
         }

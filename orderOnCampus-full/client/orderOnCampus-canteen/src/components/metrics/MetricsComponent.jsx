@@ -21,14 +21,13 @@ function MetricsComponent() {
       ) {
         try {
           const canteenId = userData.ownedCanteens[0]._id;
-          const res = await axios.get(
-            `http://localhost:5001/canteens/${userData.ownedCanteens[0]._id}/get-canteen`
-          );
-          setOrders(res.data.data.orders);
-          setMenu(res.data.data.menu);          
-          const customerRes = await axios.get(
-            `http://localhost:5001/canteens/${canteenId}/unique-customers`
-          );
+          const [ordersRes, canteenRes, customerRes] = await Promise.all([
+            axios.get(`http://localhost:5001/canteen/${canteenId}/orders`),
+            axios.get(`http://localhost:5001/canteens/${canteenId}/get-canteen`),
+            axios.get(`http://localhost:5001/canteens/${canteenId}/unique-customers`),
+          ]);
+          setOrders(ordersRes.data.data);
+          setMenu(canteenRes.data.data.menu);
           setUniqueCustomers(customerRes.data.count);
         } catch (err) {
           console.error("Failed to fetch canteen orders:", err);
