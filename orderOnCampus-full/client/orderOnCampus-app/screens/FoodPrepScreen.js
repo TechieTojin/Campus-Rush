@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import React, { useEffect } from 'react';
@@ -11,31 +12,29 @@ import {
 } from 'react-native';
 import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import { useDispatch, useSelector } from 'react-redux';
-import { selectToken } from '../slices/AuthSlice';
 import { selectCanteen } from '../slices/canteenSlice';
-import { emptyCart, selectCartItems, selectCartTotal } from '../slices/CartSlice';
+import { emptyCart, selectCartItems } from '../slices/CartSlice';
+import { API_URL } from '../config/api';
 
 export default function FoodPrepScreen() {
   const navigation = useNavigation();
   const dispatch = useDispatch();
 
   const canteen = useSelector(selectCanteen);
-  const token = useSelector(selectToken);
   const items = useSelector(selectCartItems);
-  const total = useSelector(selectCartTotal);
 
   const itemIds = items.map(item => item._id);
 
   const postData = async () => {
+    const jwtToken = await AsyncStorage.getItem('token');
     const orderData = {
-      user: token.data._id,
       canteen: canteen._id,
       items: itemIds,
-      totalPrice: total,
-      status: 'Placed',
     };
     try {
-      await axios.post("http://100.127.255.249:5001/users/place-order", orderData);
+      await axios.post(`${API_URL}/users/place-order`, orderData, {
+        headers: { Authorization: `Bearer ${jwtToken}` },
+      });
     } catch (err) {
       console.log("Order placement failed:", err);
     }

@@ -39,11 +39,11 @@ router.put('/menu/availability/:menuItemId', StaffController.updateAvailability)
 // Set canteen open status
 router.put('/canteen/open', StaffController.setCanteenOpenStatus);
 // Get canteen orders
-router.get('/canteen/:canteenId/orders', StaffController.getCanteenOrders);
+router.get('/canteen/:canteenId/orders', Auth.verifyToken, StaffController.getCanteenOrders);
 // Update order status
-router.put('/orders/:orderId/status', StaffController.updateOrderStatus);
+router.put('/orders/:orderId/status', Auth.verifyToken, StaffController.updateOrderStatus);
 // get order by id
-router.get('/orders/:orderId/get-order', StaffController.getOrderByOrderId);
+router.get('/orders/:orderId/get-order', Auth.verifyToken, StaffController.getOrderByOrderId);
 //unique customer
 router.get('/canteens/:canteenId/unique-customers',StaffController.uniqueCustomer)
 //most ordered items
@@ -64,7 +64,7 @@ router.get('/users/:userId/favorites', UserController.getFavorites);
 // Get user orders
 router.get('/users/:userId/orders', UserController.getOrders);
 // Place order
-router.post('/users/place-order', UserController.placeOrder);
+router.post('/users/place-order', Auth.verifyStudent, UserController.placeOrder);
 // get user by id
 router.get('/users/:userId/get-user', UserController.getUserById)
 

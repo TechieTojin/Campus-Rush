@@ -27,7 +27,7 @@ function OrderDetails({ order, triggerRender }) {
     try {
       await axios.put(`http://localhost:5001/orders/${order._id}/status`, {
         status: orderStatus,
-      });
+      }, { withCredentials: true });
       triggerRender();
     } catch (error) {
       console.log("Error updating order status:", error);

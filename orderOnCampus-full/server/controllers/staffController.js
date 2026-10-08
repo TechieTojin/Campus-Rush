@@ -5,6 +5,14 @@ const MenuItem = require('../model/menuItem.model')
 const Canteen = require('../model/canteen.model')
 const Order = require('../model/order.model');
 const secretKey = process.env.JWT_SECRET;
+const isProduction = process.env.NODE_ENV === 'production';
+const cookieOptions = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 24 * 60 * 60 * 1000
+};
 
 
 
@@ -25,9 +33,7 @@ exports.registerStaff = async (req, res) => {
         // Create new staff member
         const staff = await Staff.create({ username: name, email, password: hashedPassword });
         const token = jwt.sign({ _id: staff._id }, secretKey, { expiresIn: '24h' });
-        res.cookie("token", token)
-
-        // Respond with success message
+        res.cookie("token", token, cookieOptions);
         res.status(201).json({ message: 'Staff member created successfully' });
     } catch (error) {
         res.status(400).json({ error: error.message });
@@ -48,7 +54,7 @@ exports.loginStaff = async (req, res) => {
                 }
                 if (result) {
                     const token = jwt.sign({ _id: user._id }, secretKey, { expiresIn: '24h' });
-                    res.cookie("token", token)
+                    res.cookie("token", token, cookieOptions);
                     res.json("Success");
                 } else {
                     res.json("Incorrect password");
@@ -65,22 +71,21 @@ exports.loginStaff = async (req, res) => {
 
 //authentication
 exports.authStaff = async (req, res) => {
-    // console.log(res.data)
     const userData = res.locals.user;
-    await userData
-        // .populate('ownedCanteens')
-        .populate({
-            path: 'ownedCanteens',
-            populate: {
-                path: 'menu'
-            }
-        })
-    // console.log("staff data", userData)
-    res.send({ status: "ok", data: userData });
+    await userData.populate({
+        path: 'ownedCanteens',
+        populate: {
+            path: 'menu'
+        }
+    });
+    const safeData = userData.toObject();
+    delete safeData.password;
+    res.send({ status: "ok", data: safeData });
 }
 
 exports.logout = async (req, res) => {
-    res.clearCookie('token').send('Token cookie cleared successfully');
+    res.clearCookie('token', { httpOnly: true, secure: isProduction, sameSite: 'lax', path: '/' });
+    res.send('Token cookie cleared successfully');
 }
 
 
@@ -220,10 +225,17 @@ exports.setCanteenOpenStatus = async (req, res) => {
 
 
 exports.getCanteenOrders = async (req, res) => {
-    const { canteenId } = req.params
+    const { canteenId } = req.params;
+    const staff = res.locals.user;
+
     try {
-        const orders = await Order.find({ canteenId });
-        res.send({status:"ok" , data : orders})
+        const staffCanteens = staff.ownedCanteens.map(c => c.toString());
+        if (!staffCanteens.includes(canteenId)) {
+            return res.status(403).json({ message: "Not authorized to access this canteen's orders" });
+        }
+
+        const orders = await Order.find({ canteen: canteenId });
+        res.send({ status: "ok", data: orders });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Internal server error" });
@@ -234,12 +246,25 @@ exports.updateOrderStatus = async (req, res) => {
     try {
         const orderId = req.params.orderId;
         const newStatus = req.body.status;
+        const staff = res.locals.user;
 
-        const order = await Order.findByIdAndUpdate(orderId, { status: newStatus }, { new: true });
+        const validStatuses = ['Placed', 'Processing', 'Completed', 'Cancelled', 'Ready'];
+        if (!newStatus || !validStatuses.includes(newStatus)) {
+            return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+        }
 
+        const order = await Order.findById(orderId);
         if (!order) {
             return res.status(404).json({ message: "Order not found" });
         }
+
+        const staffCanteens = staff.ownedCanteens.map(c => c.toString());
+        if (!staffCanteens.includes(order.canteen.toString())) {
+            return res.status(403).json({ message: "Not authorized to update this order" });
+        }
+
+        order.status = newStatus;
+        await order.save({ validateBeforeSave: true });
 
         res.json(order);
     } catch (error) {
@@ -251,19 +276,21 @@ exports.updateOrderStatus = async (req, res) => {
 //get oreder by id 
 
 exports.getOrderByOrderId = async (req, res) => {
-    const { id } = req.params;
-    console.log(id, "this is the order id");
+    const { orderId } = req.params;
+    const staff = res.locals.user;
 
     try {
-        const order = await Order.findById(id);
-        console.log(order, "this is the order");
+        const order = await Order.findById(orderId);
         if (!order) {
             return res.status(404).json({ message: "Order not found" });
         }
-        res.send({ status: 'Ok', data: order });
 
-        // Call getOrder function with the orderId
-        await getOrder(order._id);
+        const staffCanteens = staff.ownedCanteens.map(c => c.toString());
+        if (!staffCanteens.includes(order.canteen.toString())) {
+            return res.status(403).json({ message: "Not authorized to access this order" });
+        }
+
+        res.send({ status: 'Ok', data: order });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Internal server error" });

@@ -5,6 +5,7 @@ const User = require('../model/user.model');
 const Order = require('../model/order.model')
 const Canteen = require('../model/canteen.model');
 const secretKey = process.env.JWT_SECRET;
+const JWT_EXPIRY = process.env.JWT_EXPIRY || '24h';
 
 // Register user
 exports.registerUser = async (req, res) => {
@@ -33,8 +34,7 @@ exports.loginUser = async (req, res) => {
                     res.status(500).json("An error occurred");
                 }
                 if (result) {
-                    const token = jwt.sign({ _id: data._id }, secretKey);
-                    console.log(token)
+                    const token = jwt.sign({ _id: data._id }, secretKey, { expiresIn: JWT_EXPIRY });
                     res.send({ status: "ok", data: token });
                 } else {
                     res.json("Incorrect password");
@@ -54,15 +54,15 @@ exports.getUser = async (req, res) => {
     try {
         const user = jwt.verify(token, secretKey);
         const userData = await User.findOne({ _id: user._id })
-            .populate('favoriteCanteens') // Populate the favoriteCanteens field
-            .populate('orders') // Populate the orders field
+            .select('-password')
+            .populate('favoriteCanteens')
+            .populate('orders')
             .populate({
                 path: 'favoriteCanteens',
                 populate: {
-                    path: 'menu' // Populate the menu field of each favoriteCanteen
+                    path: 'menu'
                 }
             });
-        console.log("User data", userData)
         if (!userData) {
             return res.status(404).json({ msg: 'User not found' });
         }
@@ -77,7 +77,7 @@ exports.getUser = async (req, res) => {
 exports.getUserById = async (req, res) => {
     const { userId } = req.params;
     try {
-        const userData = await User.findById(userId);
+        const userData = await User.findById(userId).select('-password');
         if (!userData) {
             return res.status(404).json({ message: 'User not found' });
         }
@@ -101,7 +101,9 @@ exports.addFavorites = async (req, res) => {
         }
         user.favoriteCanteens.push(canteenId);
         await user.save();
-        return res.status(200).json({ message: 'Canteen added to favorites successfully', user: user });
+        const safeUser = user.toObject();
+        delete safeUser.password;
+        return res.status(200).json({ message: 'Canteen added to favorites successfully', user: safeUser });
     } catch (error) {
         console.error('Error adding favorite canteen:', error);
         return res.status(500).json({ message: 'Internal server error' });
@@ -157,25 +159,54 @@ exports.getOrders = async (req, res) => {
 //place order
 exports.placeOrder = async (req, res) => {
     try {
-        const { user, canteen, items, totalPrice, status } = req.body;
+        const userId = req.user._id;
+        const { canteen: canteenId, items } = req.body;
+
+        if (!canteenId || !items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ message: 'canteen and items are required' });
+        }
+
+        const canteen = await Canteen.findById(canteenId).populate('menu');
+        if (!canteen) {
+            return res.status(404).json({ message: 'Canteen not found' });
+        }
+
+        const menuItemIds = canteen.menu.map(m => m._id.toString());
+        let totalPrice = 0;
+        const validatedItems = [];
+
+        const itemCounts = {};
+        for (const itemId of items) {
+            if (typeof itemId !== 'string' || !itemId.match(/^[0-9a-fA-F]{24}$/)) {
+                return res.status(400).json({ message: `Invalid item ID: ${itemId}` });
+            }
+            itemCounts[itemId] = (itemCounts[itemId] || 0) + 1;
+        }
+
+        for (const [itemId, qty] of Object.entries(itemCounts)) {
+            if (!menuItemIds.includes(itemId)) {
+                return res.status(400).json({ message: `Item ${itemId} does not belong to this canteen` });
+            }
+            const menuItem = canteen.menu.find(m => m._id.toString() === itemId);
+            if (!menuItem.available) {
+                return res.status(400).json({ message: `Item ${menuItem.name} is not available` });
+            }
+            totalPrice += menuItem.price * qty;
+            for (let i = 0; i < qty; i++) {
+                validatedItems.push(menuItem._id);
+            }
+        }
+
         const newOrder = new Order({
-            user,
-            canteen,
-            items,
+            user: userId,
+            canteen: canteenId,
+            items: validatedItems,
             totalPrice,
-            status
+            status: 'Placed'
         });
         const savedOrder = await newOrder.save();
-        await User.findByIdAndUpdate(
-            user,
-            { $push: { orders: savedOrder._id } }, // Add the new order's ObjectId to the 'orders' array
-            { new: true } // Return the updated document
-        );
-        await Canteen.findByIdAndUpdate(
-            canteen,
-            { $push: { orders: savedOrder._id } }, // Add the new order's ObjectId to the 'orders' array
-            { new: true } // Return the updated document
-        );
+        await User.findByIdAndUpdate(userId, { $push: { orders: savedOrder._id } });
+        await Canteen.findByIdAndUpdate(canteenId, { $push: { orders: savedOrder._id } });
         res.status(201).json(savedOrder);
     } catch (error) {
         console.error("Error creating order:", error);
