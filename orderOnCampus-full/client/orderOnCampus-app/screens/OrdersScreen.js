@@ -15,6 +15,7 @@ import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import { useDispatch, useSelector } from 'react-redux';
 import OrderCard from '../components/OrderCard';
 import { selectToken, setToken } from '../slices/AuthSlice';
+import { API_URL } from '../config/api';
 
 export default function OrdersScreen() {
   const user = useSelector(selectToken); // Retrieve token from Redux
@@ -29,7 +30,7 @@ export default function OrdersScreen() {
       const token = await AsyncStorage.getItem('token');
       if (!token) throw new Error('No token found in AsyncStorage.');
 
-      const res = await axios.post('http://100.127.255.249:5001/users/get-user', { token });
+      const res = await axios.post(`${API_URL}/users/get-user`, { token });
       if (res.data && res.data.data) {
         dispatch(setToken({ data: res.data.data }));
         setOrders(res.data.data.orders || []); // Update orders state

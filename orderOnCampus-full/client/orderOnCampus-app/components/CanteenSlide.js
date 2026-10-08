@@ -6,6 +6,7 @@ import axios from 'axios';
 import { useCallback } from 'react';
 import * as Icon from "react-native-feather";
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
+import { API_URL } from '../config/api';
 
 
 export default function CanteenSlide({ activeCategory, filteredData }) {
@@ -19,7 +20,7 @@ export default function CanteenSlide({ activeCategory, filteredData }) {
   const snacks = allCanteens.filter(canteen => canteen.categories && canteen.categories.includes('snacks'));
 
   const getCanteens = useCallback(async () => {
-    await axios.get('http://100.127.255.249:5001/canteens/get-canteens')
+    await axios.get(`${API_URL}/canteens/get-canteens`)
       .then((res) => {
         setAllCanteens(res.data.data);
         console.log("CANTEEN SLIDE",allCanteens)

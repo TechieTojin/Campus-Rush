@@ -2,12 +2,15 @@ const express = require('express');
 const router = express.Router();
 const OpenAI = require('openai');
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
+const openai = process.env.OPENAI_API_KEY
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    : null;
 
 router.post('/chat', async (req, res) => {
     try {
+        if (!openai) {
+            return res.status(503).json({ error: 'AI service not configured' });
+        }
         const { messages } = req.body;
 
         // Enhanced system message for better food recommendations

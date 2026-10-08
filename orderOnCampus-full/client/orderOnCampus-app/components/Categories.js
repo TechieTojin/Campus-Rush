@@ -4,6 +4,7 @@ import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'r
 import * as Icon from "react-native-feather";
 import { categories } from '../constants';
 import CanteenSlide from './CanteenSlide';
+import { API_URL } from '../config/api';
 
 export default function Categories() {
     const [allCanteens, setAllCanteens] = useState([]);
@@ -13,7 +14,7 @@ export default function Categories() {
 
     const getCanteens = useCallback(async () => {
         try {
-            const response = await axios.get('http://100.127.255.249:5001/canteens/get-canteens');
+            const response = await axios.get(`${API_URL}/canteens/get-canteens`);
             setAllCanteens(response.data.data);
         } catch (error) {
             console.error('Error fetching canteens:', error);

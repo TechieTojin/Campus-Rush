@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Image, ImageBackground, Pressable, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as Icon from "react-native-feather";
 import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
+import { API_URL } from '../config/api';
 
 export default function RegisterScreen() {
     const navigation = useNavigation();
@@ -77,7 +78,7 @@ export default function RegisterScreen() {
                 phone,
                 password,
             };
-            axios.post("http://100.127.255.249:5001/users/register", userData).then((res) => {
+            axios.post(`${API_URL}/users/register`, userData).then((res) => {
                 if (res.data === "exists") {
                     setUser(true);
                 } else {

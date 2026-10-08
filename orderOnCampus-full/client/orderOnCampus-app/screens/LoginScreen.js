@@ -6,7 +6,8 @@ import { Image, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View }
 import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import Ionicons from 'react-native-vector-icons/Ionicons'; // Icon package for input toggles
 
-const BASE_URL = 'http://100.127.255.249:5001'; // Update with your server IP
+import { API_URL } from '../config/api';
+const BASE_URL = API_URL;
 
 export default function LoginScreen() {
   const navigation = useNavigation();

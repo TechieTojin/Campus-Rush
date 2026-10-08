@@ -10,6 +10,7 @@ import CartIcon from '../components/CartIcon';
 import DishRow from '../components/DishRow';
 import { selectToken, setToken } from '../slices/AuthSlice';
 import { selectCanteen, setCanteen } from '../slices/canteenSlice';
+import { API_URL } from '../config/api';
 export default function CanteenScreen() {
   const navigation = useNavigation()
   const { params } = useRoute();
@@ -43,13 +44,13 @@ export default function CanteenScreen() {
       userId: userId,
     }
     if (!favorites) {
-      axios.post("http://100.127.255.249:5001/users/set-fav", data).then((res) => {
+      axios.post(`${API_URL}/users/set-fav`, data).then((res) => {
         // alert("added to favorite");
         // console.log(res);
         dispatch(setToken(token))
       }).catch(err => console.log(err))
     } else {
-      axios.delete(`http://0.0.0.0:5001/users/${userId}/favoriteCanteens/${item._id}`).then((res) => {
+      axios.delete(`${API_URL}/users/${userId}/favoriteCanteens/${item._id}`).then((res) => {
       // alert("removed from favorite");
       // console.log(res);
       dispatch(setToken(token))

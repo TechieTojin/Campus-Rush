@@ -2,6 +2,7 @@ import axios from 'axios';
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import * as Icon from 'react-native-feather';
+import { API_URL } from '../config/api';
 
 export default function OrderItems({ food }) {
   const [itemName, setItemName] = useState('');
@@ -10,7 +11,7 @@ export default function OrderItems({ food }) {
 
   const fetchItemData = async () => {
     try {
-      const response = await axios.get(`http://100.127.255.249:5001/canteens/${food.id}/get-item`);
+      const response = await axios.get(`${API_URL}/canteens/${food.id}/get-item`);
       setItemName(response.data.data.name);
     } catch (err) {
       console.error('Error fetching item data:', err);

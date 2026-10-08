@@ -6,6 +6,7 @@ import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-nat
 import { useDispatch, useSelector } from 'react-redux';
 import { selectToken } from '../slices/AuthSlice';
 import OrderItems from './OrderItems';
+import { API_URL } from '../config/api';
 
 export default function OrderCard({ data }) {
     const [canteenName, setCanteenName] = useState("");
@@ -17,7 +18,7 @@ export default function OrderCard({ data }) {
 
     const getData = async () => {
         try {
-            const response = await axios.get(`http://100.127.255.249:5001/canteens/${data.canteen}/get-canteen`);
+            const response = await axios.get(`${API_URL}/canteens/${data.canteen}/get-canteen`);
             const menu = response.data.data.menu;
             setCanteenName(response.data.data.name);
             setCanteenLoc(response.data.data.location);

@@ -8,8 +8,7 @@ import * as Icon from "react-native-feather";
 import { useDispatch, useSelector } from 'react-redux';
 import Categories from '../components/Categories';
 import { selectToken, setToken } from '../slices/AuthSlice';
-
-const BASE_URL = 'http://100.127.255.249:5001'; // Update with your server IP
+import { API_URL } from '../config/api';
 
 export default function HomeScreen() {
     const dispatch = useDispatch();
