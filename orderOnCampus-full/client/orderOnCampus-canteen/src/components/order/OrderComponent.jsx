@@ -35,6 +35,10 @@ function OrderComponent() {
             `http://localhost:5001/canteen/${userData.ownedCanteens[0]._id}/orders`
           );
           setOrders(res.data.data);
+          if (selectedOrder) {
+            const updated = res.data.data.find(o => o._id === selectedOrder._id);
+            if (updated) setSelectedOrder(updated);
+          }
         } catch (err) {
           console.log(err);
         }
