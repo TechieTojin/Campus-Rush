@@ -1,0 +1,10 @@
+.main {
+  background-image: url("../assets/mainBG.jpg");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position-y: top;
+  background-position-x: left;
+  min-height: 30vmax;
+  width: 100%;
+  height: 50%;
+}

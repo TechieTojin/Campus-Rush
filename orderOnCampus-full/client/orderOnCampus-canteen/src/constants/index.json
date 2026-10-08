@@ -1,0 +1,50 @@
+{
+    "orders": [
+      {
+        "orderID": "123456789",
+        "userName": "JohnDoe",
+        "orderNumber": "ORD123",
+        "date": "2024-02-18",
+        "noOfItems": 3,
+        "totalPrice": 25.99,
+        "itemsOrdered": [
+          {
+            "itemId": "item001",
+            "itemName": "Pizza",
+            "itemPrice": 10.99
+          },
+          {
+            "itemId": "item002",
+            "itemName": "Salad",
+            "itemPrice": 5.99
+          },
+          {
+            "itemId": "item003",
+            "itemName": "Soda",
+            "itemPrice": 9.01
+          }
+        ]
+      },
+      {
+        "orderID": "987654321",
+        "userName": "JaneSmith",
+        "orderNumber": "ORD124",
+        "date": "2024-02-18",
+        "noOfItems": 2,
+        "totalPrice": 15.5,
+        "itemsOrdered": [
+          {
+            "itemId": "item004",
+            "itemName": "Burger",
+            "itemPrice": 8.5
+          },
+          {
+            "itemId": "item005",
+            "itemName": "Fries",
+            "itemPrice": 7
+          }
+        ]
+      }
+    ]
+  }
+  
