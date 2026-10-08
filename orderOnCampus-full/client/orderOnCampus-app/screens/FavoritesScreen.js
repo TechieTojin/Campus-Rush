@@ -1,97 +1,53 @@
-import React, { useEffect, useState } from 'react';
-import { SafeAreaView, ScrollView, View, Text, StyleSheet, Image } from 'react-native';
-import { useSelector } from 'react-redux';
-import { selectToken } from '../slices/AuthSlice';
-import CanteenRow from '../components/CanteenRow';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import React, { useCallback, useState } from 'react';
+import { FlatList, RefreshControl, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CanteenCard } from '../components/cards';
+import { EmptyState } from '../components/ui/feedback';
+import { colors, space, type } from '../constants/theme';
+import { refreshUser, useUser } from '../hooks/useSession';
 
 export default function FavoritesScreen() {
-  const [favoriteCanteens, setFavoriteCanteens] = useState([]);
-  const token = useSelector(selectToken);
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const user = useUser();
+  const [refreshing, setRefreshing] = useState(false);
+  const favorites = (user?.favoriteCanteens || []).filter(c => c && c._id);
 
-  useEffect(() => {
-    if (token?.data?.favoriteCanteens) {
-      setFavoriteCanteens(token.data.favoriteCanteens);
-    }
-  }, [token]);
+  useFocusEffect(useCallback(() => { refreshUser().catch(() => {}); }, []));
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refreshUser().catch(() => {});
+    setRefreshing(false);
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollView}>
-        {/* Header Section */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Your Favorite Canteens</Text>
-          <Text style={styles.subtitle}>Find your favorite spots here!</Text>
-        </View>
-
-        {/* Favorites Section */}
-        {favoriteCanteens && favoriteCanteens.length > 0 ? (
-          favoriteCanteens.map((canteen, index) => (
-            <View key={index} style={styles.card}>
-              <CanteenRow canteen={canteen} />
-            </View>
-          ))
-        ) : (
-          // Empty State
-          <View style={styles.emptyState}>
-            <Image
-              source={{
-                uri: 'https://img.icons8.com/clouds/100/null/no-data.png',
-              }}
-              style={styles.emptyIcon}
-            />
-            <Text style={styles.emptyText}>No favorite canteens added yet.</Text>
+    <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + space.sm }}>
+      <FlatList
+        data={favorites}
+        keyExtractor={c => c._id}
+        renderItem={({ item }) => <CanteenCard canteen={item} />}
+        contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xl, flexGrow: 1 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.brand]} />}
+        ListHeaderComponent={
+          <View style={{ marginBottom: space.md }}>
+            <Text style={type.h1}>Favorites</Text>
+            <Text style={type.small}>
+              {favorites.length ? `${favorites.length} saved canteen${favorites.length === 1 ? '' : 's'} · tap the heart to remove` : 'Your go-to spots, one tap away'}
+            </Text>
           </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+        }
+        ListEmptyComponent={
+          <EmptyState
+            icon="heart"
+            title="No favorites yet"
+            message="Tap the heart on any canteen to save it here for quick ordering."
+            actionLabel="Explore canteens"
+            onAction={() => navigation.navigate('Home')}
+          />
+        }
+      />
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f9f9f9',
-  },
-  scrollView: {
-    padding: 20,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 15,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
-  },
-  emptyState: {
-    alignItems: 'center',
-    marginTop: 50,
-  },
-  emptyIcon: {
-    width: 100,
-    height: 100,
-    marginBottom: 15,
-  },
-  emptyText: {
-    fontSize: 18,
-    color: '#888',
-    textAlign: 'center',
-  },
-});

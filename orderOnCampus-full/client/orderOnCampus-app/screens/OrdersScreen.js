@@ -1,126 +1,112 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from '@react-navigation/native';
-import axios from 'axios';
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  RefreshControl,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
-import { useDispatch, useSelector } from 'react-redux';
-import OrderCard from '../components/OrderCard';
-import { selectToken, setToken } from '../slices/AuthSlice';
-import { API_URL } from '../config/api';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import React, { useCallback, useState } from 'react';
+import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useDispatch } from 'react-redux';
+import { mergeUser } from '../slices/AuthSlice';
+import { OrderListCard } from '../components/cards';
+import { EmptyState, ErrorState, Skeleton } from '../components/ui/feedback';
+import { PressableScale } from '../components/ui/primitives';
+import { ACTIVE_STATUSES, colors, radius, space, type } from '../constants/theme';
+import { errorMessage, getMyOrders } from '../services/api';
+
+const POLL_MS = 8000;
 
 export default function OrdersScreen() {
-  const user = useSelector(selectToken); // Retrieve token from Redux
-  const dispatch = useDispatch();
-  const [loading, setLoading] = useState(false);
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const [orders, setOrders] = useState(null);
+  const [error, setError] = useState('');
+  const [tab, setTab] = useState('active');
   const [refreshing, setRefreshing] = useState(false);
-  const [orders, setOrders] = useState([]); // Local state for orders
+  const dispatch = useDispatch();
 
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) throw new Error('No token found in AsyncStorage.');
-
-      const res = await axios.post(`${API_URL}/users/get-user`, { token });
-      if (res.data && res.data.data) {
-        dispatch(setToken({ data: res.data.data }));
-        setOrders(res.data.data.orders || []); // Update orders state
-      } else {
-        console.error('Unexpected response format:', res.data);
-      }
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-    } finally {
-      setLoading(false);
+      const list = await getMyOrders();
+      setOrders(list);
+      dispatch(mergeUser({ orders: list }));
+      setError('');
+    } catch (e) {
+      setError(errorMessage(e));
     }
   }, [dispatch]);
 
-  useEffect(() => {
-    fetchOrders();
-    const intervalId = setInterval(() => {
-      fetchOrders();
-    }, 5000); // Refresh orders every 5 seconds
-
-    return () => clearInterval(intervalId);
-  }, [fetchOrders]);
-
   useFocusEffect(
     useCallback(() => {
-      fetchOrders();
-    }, [fetchOrders])
+      load();
+      const id = setInterval(load, POLL_MS);
+      return () => clearInterval(id);
+    }, [load])
   );
 
-  const onRefresh = useCallback(async () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    await fetchOrders();
+    await load();
     setRefreshing(false);
-  }, [fetchOrders]);
+  };
+
+  const active = (orders || []).filter(o => ACTIVE_STATUSES.includes(o.status));
+  const past = (orders || []).filter(o => !ACTIVE_STATUSES.includes(o.status));
+  const data = tab === 'active' ? active : past;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.headerText}>My Orders</Text>
-
-      {loading ? (
-        <ActivityIndicator size="large" color="#3E7A38" style={styles.loader} />
-      ) : orders.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>You have no orders yet.</Text>
+    <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + space.sm }}>
+      <View style={{ paddingHorizontal: space.lg }}>
+        <Text style={type.h1}>My orders</Text>
+        <Text style={[type.small, { marginBottom: space.md }]}>Status updates automatically while this screen is open</Text>
+        <View style={styles.segment} accessibilityRole="tablist">
+          {[
+            { key: 'active', label: `Active${orders ? ` (${active.length})` : ''}` },
+            { key: 'past', label: `Past${orders ? ` (${past.length})` : ''}` },
+          ].map(s => (
+            <PressableScale
+              key={s.key}
+              onPress={() => setTab(s.key)}
+              scaleTo={0.97}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: tab === s.key }}
+              style={[styles.segmentItem, tab === s.key && styles.segmentActive]}
+            >
+              <Text style={[type.smallStrong, tab === s.key && { color: colors.ink }]}>{s.label}</Text>
+            </PressableScale>
+          ))}
         </View>
+      </View>
+
+      {!orders && !error ? (
+        <View style={{ padding: space.lg }}>{[0, 1, 2].map(i => <Skeleton key={i} height={150} radius={radius.lg} style={{ marginBottom: space.sm }} />)}</View>
+      ) : !orders && error ? (
+        <ErrorState message={error} onRetry={load} />
       ) : (
-        <ScrollView
-          contentContainerStyle={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        >
-          {orders
-            .slice()
-            .reverse()
-            .map((order, index) => (
-              <OrderCard key={index} data={order} />
-            ))}
-        </ScrollView>
+        <FlatList
+          data={data}
+          keyExtractor={o => o._id}
+          renderItem={({ item }) => <OrderListCard order={item} onPress={() => navigation.navigate('OrderDetail', { orderId: item._id })} />}
+          contentContainerStyle={{ padding: space.lg, flexGrow: 1 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.brand]} />}
+          ListHeaderComponent={error ? <Text style={[type.small, { color: colors.danger, marginBottom: space.sm }]}>Couldn't refresh: {error}</Text> : null}
+          ListEmptyComponent={
+            tab === 'active' ? (
+              <EmptyState
+                icon="coffee"
+                title="No active orders"
+                message="When you place an order, you can track it here in real time."
+                actionLabel="Order something"
+                onAction={() => navigation.navigate('Home')}
+              />
+            ) : (
+              <EmptyState icon="clock" title="No past orders yet" message="Completed and cancelled orders will appear here." />
+            )
+          }
+        />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F7F7F7',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#3E7A38',
-    marginVertical: 15,
-  },
-  loader: {
-    marginTop: 20,
-  },
-  scrollView: {
-    paddingBottom: wp('20%'),
-    paddingHorizontal: 10,
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 18,
-    color: '#666',
-    textAlign: 'center',
-  },
+  segment: { flexDirection: 'row', backgroundColor: colors.surfaceMuted, borderRadius: radius.md, padding: 4 },
+  segmentItem: { flex: 1, height: 40, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  segmentActive: { backgroundColor: colors.surface },
 });

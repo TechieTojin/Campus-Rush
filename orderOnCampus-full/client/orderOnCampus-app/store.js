@@ -9,5 +9,10 @@ export const store = configureStore({
     cart : CartSlice,
     canteen : canteenSlice
   },
+  // Development-only checks; the signed-in user's order history makes them exceed the default 32ms budget.
+  middleware: (getDefault) => getDefault({
+    serializableCheck: { warnAfter: 200 },
+    immutableCheck: { warnAfter: 200 },
+  }),
 })
 

@@ -64,10 +64,10 @@ const styles = StyleSheet.create({
     elevation: 4,  // Subtle shadow for a floating effect
   },
   itemImage: {
-    width: hp('12%'),
-    height: hp('12%'),
+    width: hp('8%'),
+    height: hp('8%'),
     borderRadius: 10,
-    marginRight: 16,
+    marginRight: 12,
   },
   detailsContainer: {
     flex: 1,
@@ -94,10 +94,10 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: '#2D6A4F',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: 50,
-    marginHorizontal: 8,
+    marginHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -106,8 +106,8 @@ const styles = StyleSheet.create({
   },
   quantityDisplay: {
     backgroundColor: '#F1F3F5',
-    paddingVertical: 6,
-    paddingHorizontal: 14,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
     borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',

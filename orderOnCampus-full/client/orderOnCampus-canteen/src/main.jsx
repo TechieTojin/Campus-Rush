@@ -1,14 +1,19 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App.jsx";
-import "./index.css";
-import { store } from "./store.js";
-import { Provider } from "react-redux";
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import App from './App.jsx';
+import './index.css';
+import { SessionProvider } from './lib/session.jsx';
+import { ToastProvider } from './components/ui/Feedback.jsx';
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <Provider store={store}>
-      <App />
-    </Provider>
+    <BrowserRouter>
+      <ToastProvider>
+        <SessionProvider>
+          <App />
+        </SessionProvider>
+      </ToastProvider>
+    </BrowserRouter>
   </React.StrictMode>
 );

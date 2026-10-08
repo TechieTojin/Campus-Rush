@@ -1,34 +1,35 @@
 const Canteen = require('../model/canteen.model');
 const MenuItem = require('../model/menuItem.model')
 const Staff = require('../model/staff.model');
-const jwt = require('jsonwebtoken');
-const secretKey = process.env.JWT_SECRET;
-// Register canteen 
-exports.registerCanteen = async (req, res) => {
-    try {
-        const { canteenName, location, canteenDescription, category, openingHours, menu } = req.body;
-        const canteen = await Canteen.create({ name: canteenName, location, canteenDescription, category, openingHours, menu });
-        const createdCanteenId = canteen._id;
-        console.log("created ID", createdCanteenId);
+const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
-        const token = req.cookies.token // Get the JWT token from the request cookies
-        console.log(token)
-        if (!token) {
-            return res.status(401).json({ message: 'Unauthorized' });
+// Register canteen (runs after verifyToken). A staff account sets up exactly one canteen, which it then owns;
+// it can never attach itself to an existing canteen.
+exports.registerCanteen = async (req, res) => {
+    const staff = res.locals.user;
+    try {
+        if (staff.ownedCanteens.length > 0) {
+            return res.status(409).json({ message: 'This account already manages a canteen' });
         }
-        const user = jwt.verify(token, secretKey)
-        const loggedUser = Staff.findOne({ _id: user._id }).then(async (userData) => {
-            const staffId = userData._id;
-            console.log("Staff Id is ", staffId)
-            const updatedStaff = await Staff.findByIdAndUpdate(
-                staffId,
-                { $push: { ownedCanteens: createdCanteenId } },
-                { new: true }
-            );
-        })
-        res.status(201).json({ message: 'Canteen created successfully' });
+        const name = str(req.body.canteenName, 60);
+        const location = str(req.body.location, 120);
+        const canteenDescription = str(req.body.canteenDescription, 500);
+        const category = str(req.body.category, 40);
+        if (name.length < 3) return res.status(400).json({ message: 'Canteen name must be at least 3 characters' });
+        if (location.length < 3) return res.status(400).json({ message: 'Location must be at least 3 characters' });
+        if (!category) return res.status(400).json({ message: 'Choose a canteen type' });
+
+        const canteen = await Canteen.create({ name, location, canteenDescription, category, openStatus: false, menu: [], orders: [], menuCategories: [] });
+        await Staff.updateOne({ _id: staff._id, ownedCanteens: { $size: 0 } }, { $push: { ownedCanteens: canteen._id } });
+        const fresh = await Staff.findById(staff._id);
+        if (!fresh.ownedCanteens.some(id => id.equals(canteen._id))) {
+            await Canteen.deleteOne({ _id: canteen._id });
+            return res.status(409).json({ message: 'This account already manages a canteen' });
+        }
+        res.status(201).json({ message: 'Canteen created successfully', data: { _id: canteen._id, name: canteen.name } });
     } catch (error) {
-        res.status(400).json({ message: error.message });
+        console.error('Canteen registration failed:', error);
+        res.status(500).json({ message: 'Could not create the canteen' });
     }
 };
 //get canteens
@@ -60,8 +61,7 @@ exports.getMenuById = async (req, res) => {
     const { itemId } = req.params
     console.log(itemId)
     try {
-        const item = await MenuItem.findById(itemId)
-        console.log("MENU ITEM BY ID",item)
+        const item = await MenuItem.findOne({ _id: itemId, archived: { $ne: true } })
         res.send({ status: "ok", data: item })
     } catch (error) {
         console.error(error);

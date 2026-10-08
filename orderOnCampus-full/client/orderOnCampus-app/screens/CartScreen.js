@@ -1,123 +1,128 @@
+import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
-import { Image, ImageBackground, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import * as Icon from "react-native-feather";
-import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
+import React from 'react';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
-import { selectCanteen } from '../slices/canteenSlice';
-import { removeFromCart, selectCartItems, selectCartTotal } from '../slices/CartSlice';
+import { EmptyState } from '../components/ui/feedback';
+import { FoodArt, QuantityStepper, ScreenHeader } from '../components/ui/food';
+import { Button, Card, IconButton, PressableScale } from '../components/ui/primitives';
+import { colors, radius, shadow, space, type } from '../constants/theme';
+import useCart from '../hooks/useCart';
+import { emptyCart, removeItem, selectCartCanteen, selectCartCount, selectCartItems, selectCartTotal } from '../slices/CartSlice';
+import { formatPrice } from '../utils/format';
+
+export function BillSummary({ total, count }) {
+  return (
+    <Card>
+      <Text style={[type.h3, { marginBottom: space.sm }]}>Bill details</Text>
+      <Row label={`Item total (${count} item${count === 1 ? '' : 's'})`} value={formatPrice(total)} />
+      <Row label="Packaging & platform fees" value="None" muted />
+      <View style={styles.divider} />
+      <Row label="To pay" value={formatPrice(total)} strong />
+      <Text style={[type.small, { marginTop: space.xs }]}>Prices are confirmed by the canteen when your order is placed.</Text>
+    </Card>
+  );
+}
+
+function Row({ label, value, strong, muted }) {
+  return (
+    <View style={styles.row}>
+      <Text style={[strong ? type.h3 : type.body, { flex: 1 }]}>{label}</Text>
+      <Text style={[strong ? type.h3 : type.bodyStrong, muted && { color: colors.success }]}>{value}</Text>
+    </View>
+  );
+}
 
 export default function CartScreen() {
-    const navigation = useNavigation();
-    const canteen = useSelector(selectCanteen);
-    const [groupedItems, setGroupedItems] = useState({});
-    const cartItems = useSelector(selectCartItems);
-    const cartTotal = useSelector(selectCartTotal);
-    const dispatch = useDispatch();
-    const orderTotal = cartTotal + 2;
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const dispatch = useDispatch();
+  const items = useSelector(selectCartItems);
+  const canteen = useSelector(selectCartCanteen);
+  const total = useSelector(selectCartTotal);
+  const count = useSelector(selectCartCount);
+  const { update } = useCart();
 
-    useEffect(() => {
-        const items = cartItems.reduce((group, item) => {
-            if (group[item._id]) {
-                group[item._id].push(item);
-            } else {
-                group[item._id] = [item];
-            }
-            return group;
-        }, {});
-        setGroupedItems(items);
-    }, [cartItems]);
+  const clear = () =>
+    Alert.alert('Clear cart?', 'This removes all items from your cart.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: () => dispatch(emptyCart()) },
+    ]);
 
-    if (!cartItems.length)
-        return (
-            <ImageBackground
-                source={require('../assets/cart.png')} // Update the path to your cart.png image
-                style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-            >
-                <TouchableOpacity
-                    onPress={() => navigation.goBack()}
-                    style={{ position: 'absolute', top: 20, left: 20, backgroundColor: 'white', borderRadius: 50, padding: 10, zIndex: 50 }}
-                >
-                    <Icon.ArrowLeft height="20" width="20" stroke="#2A4834" strokeWidth={3} />
-                </TouchableOpacity>
-                <Icon.ShoppingBag stroke='white' width={wp('80%')} height={wp('80%')} strokeWidth={1} />
-                <Text style={{ color: 'white', fontSize: 24, fontWeight: 'bold' }}>Oops :(</Text>
-                <Text style={{ color: 'white', fontSize: 18, fontWeight: '500' }}>Your cart is empty</Text>
-            </ImageBackground>
-        );
-
+  if (!items.length) {
     return (
-        <ImageBackground
-            source={require('../assets/cart.png')} // Update the path to your cart.png image
-            style={{ flex: 1 }}
-        >
-            <StatusBar style="light" />
-            <TouchableOpacity
-                onPress={() => navigation.goBack()}
-                style={{ position: 'absolute', top: 20, left: 20, backgroundColor: 'white', borderRadius: 50, padding: 10, zIndex: 50 }}
-            >
-                <Icon.ArrowLeft height="20" width="20" stroke="#2A4834" strokeWidth={3} />
-            </TouchableOpacity>
-            <ScrollView style={{ paddingBottom: 80 }} contentContainerStyle={{ paddingHorizontal: wp('5%') }}>
-                <Text style={{ fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center', marginVertical: 20 }}>Your Cart</Text>
-                <Text style={{ fontSize: 18, fontWeight: '600', color: '#fff', textAlign: 'center', marginBottom: 20 }}>{canteen.name}</Text>
-                {
-                    Object.entries(groupedItems).map(([key, items]) => {
-                        let dish = items[0];
-                        return (
-                            <View key={key} style={{
-                                flexDirection: 'row', backgroundColor: '#fff', paddingVertical: 15, paddingHorizontal: 20,
-                                borderRadius: 12, marginBottom: 15, alignItems: 'center', justifyContent: 'space-between',
-                                shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5
-                            }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                    <Text style={{ fontSize: 16, fontWeight: '700', marginRight: 10 }}>{items.length} X</Text>
-                                    <Image source={dish.image} style={{ height: 40, width: 40, borderRadius: 10, marginRight: 10 }} />
-                                    <Text style={{ fontSize: 16, fontWeight: '500' }}>{dish.name}</Text>
-                                </View>
-                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                    <Text style={{ fontSize: 16, fontWeight: '600' }}>₹{dish.price}</Text>
-                                    <TouchableOpacity
-                                        style={{
-                                            backgroundColor: '#4CAF50', borderRadius: 50, padding: 8, marginLeft: 10, justifyContent: 'center',
-                                            alignItems: 'center', elevation: 5
-                                        }}
-                                        onPress={() => dispatch(removeFromCart({ _id: dish._id }))}>
-                                        <Icon.Minus height="20" width="20" stroke="white" />
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        );
-                    })
-                }
-            </ScrollView>
-            <View style={{
-                position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, backgroundColor: '#fff', borderTopLeftRadius: 30,
-                borderTopRightRadius: 30, shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 5
-            }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#333' }}>Subtotal</Text>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#333' }}>₹{cartTotal}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#333' }}>Processing Charge</Text>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#333' }}>₹2</Text>
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
-                    <Text style={{ fontSize: 18, fontWeight: '700', color: '#333' }}>Order Total</Text>
-                    <Text style={{ fontSize: 18, fontWeight: '700', color: '#333' }}>₹{orderTotal}</Text>
-                </View>
-                <TouchableOpacity
-                    onPress={() => navigation.navigate('Payment', { orderTotal })}
-                    style={{
-                        backgroundColor: '#4CAF50', paddingVertical: 15, borderRadius: 50, justifyContent: 'center',
-                        alignItems: 'center', elevation: 5
-                    }}
-                >
-                    <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>Check Out</Text>
-                </TouchableOpacity>
-            </View>
-        </ImageBackground>
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        <ScreenHeader title="Your cart" />
+        <EmptyState
+          icon="shopping-bag"
+          title="Your cart is empty"
+          message="Browse campus canteens and add something delicious."
+          actionLabel="Explore canteens"
+          onAction={() => navigation.navigate('Main', { screen: 'Home' })}
+        />
+      </View>
     );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <ScreenHeader
+        title="Your cart"
+        subtitle={`${count} item${count === 1 ? '' : 's'}`}
+        right={<IconButton icon="trash-2" onPress={clear} accessibilityLabel="Clear cart" color={colors.danger} />}
+      />
+      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: 140 }}>
+        <PressableScale onPress={() => navigation.navigate('Canteen', { canteenId: canteen._id })} scaleTo={0.985} style={styles.canteen}>
+          <View style={styles.canteenIcon}><Feather name="home" size={18} color={colors.brand} /></View>
+          <View style={{ flex: 1, marginLeft: space.sm }}>
+            <Text style={type.caption}>ORDERING FROM</Text>
+            <Text style={type.bodyStrong} numberOfLines={1}>{canteen.name}</Text>
+          </View>
+          <Text style={[type.smallStrong, { color: colors.brand }]}>+ Add more</Text>
+        </PressableScale>
+
+        <Card style={{ paddingVertical: space.xs, marginBottom: space.md }}>
+          {items.map((item, idx) => (
+            <View key={item._id} style={[styles.item, idx < items.length - 1 && styles.itemBorder]}>
+              <FoodArt name={item.name} image={item.image} size={56} rounded={radius.sm} />
+              <View style={{ flex: 1, marginHorizontal: space.sm }}>
+                <Text style={type.bodyStrong} numberOfLines={2}>{item.name}</Text>
+                <Text style={type.small}>{formatPrice(item.price)} each</Text>
+                <PressableScale onPress={() => dispatch(removeItem(item._id))} hitSlop={8} style={{ alignSelf: 'flex-start', marginTop: 2 }} accessibilityLabel={`Remove ${item.name}`}>
+                  <Text style={[type.caption, { color: colors.danger }]}>Remove</Text>
+                </PressableScale>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <QuantityStepper
+                  compact
+                  name={item.name}
+                  quantity={item.quantity}
+                  onIncrease={() => update(item._id, Math.min(20, item.quantity + 1))}
+                  onDecrease={() => update(item._id, item.quantity - 1)}
+                />
+                <Text style={[type.bodyStrong, { marginTop: 6 }]}>{formatPrice(item.price * item.quantity)}</Text>
+              </View>
+            </View>
+          ))}
+        </Card>
+
+        <BillSummary total={total} count={count} />
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, space.md) }]}>
+        <Button title="Proceed to checkout" trailing={formatPrice(total)} onPress={() => navigation.navigate('Checkout')} />
+      </View>
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  canteen: { flexDirection: 'row', alignItems: 'center', padding: space.md, backgroundColor: colors.surface, borderRadius: radius.lg, marginBottom: space.md, ...shadow.card },
+  canteenIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center' },
+  item: { flexDirection: 'row', alignItems: 'center', paddingVertical: space.sm },
+  itemBorder: { borderBottomWidth: 1, borderBottomColor: colors.divider },
+  row: { flexDirection: 'row', alignItems: 'center', marginVertical: 4 },
+  divider: { height: 1, backgroundColor: colors.divider, marginVertical: space.xs },
+  footer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: space.lg, paddingTop: space.md, backgroundColor: colors.surface, ...shadow.raised },
+});

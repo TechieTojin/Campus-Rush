@@ -1,19 +1,16 @@
-import { StripeProvider } from '@stripe/stripe-react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider } from 'react-redux';
+import { ToastHost } from './components/ui/feedback';
 import Navigation from './router/navigation';
 import { store } from './store';
 
-const STRIPE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
 export default function App() {
-
   return (
-
     <Provider store={store}>
-      <StripeProvider publishableKey= {STRIPE_KEY}>
+      <SafeAreaProvider>
         <Navigation />
-      </StripeProvider>
+        <ToastHost />
+      </SafeAreaProvider>
     </Provider>
   );
 }
-
-

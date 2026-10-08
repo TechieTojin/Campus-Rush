@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 15,
     width: wp('90%'),
-    height: hp('35%'),
+    height: hp('25%'),
     borderWidth: 1,
     borderColor: '#f0f0f0',  // Soft border for definition
   },

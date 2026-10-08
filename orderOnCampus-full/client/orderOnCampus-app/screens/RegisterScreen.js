@@ -1,232 +1,96 @@
 import { useNavigation } from '@react-navigation/native';
-import axios from 'axios';
-import React, { useState } from 'react';
-import { Image, ImageBackground, Pressable, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import * as Icon from "react-native-feather";
-import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
-import { API_URL } from '../config/api';
+import React, { useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Banner } from '../components/ui/feedback';
+import { TextField } from '../components/ui/forms';
+import { Button, IconButton, PressableScale } from '../components/ui/primitives';
+import { colors, radius, space, type } from '../constants/theme';
+import { refreshUser, resetTo } from '../hooks/useSession';
+import { errorMessage, login, register } from '../services/api';
+import { isStrongPassword, isValidEmail } from '../utils/format';
+import { AuthHero } from './LoginScreen';
 
 export default function RegisterScreen() {
-    const navigation = useNavigation();
-    const [showPassword, setShowPassword] = useState(false);
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const refs = { email: useRef(null), password: useRef(null), confirm: useRef(null) };
+  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-    const [phone, setPhone] = useState('');
-    const [password, setPassword] = useState('');
-    const [cpassword, setCpassword] = useState('');
-    const [nameVerify, setNameVerify] = useState(false);
-    const [emailVerify, setEmailVerify] = useState(false);
-    const [phoneVerify, setPhoneVerify] = useState(false);
-    const [passwordVerify, setPasswordVerify] = useState(false);
-    const [cpasswordVerify, setCpasswordVerify] = useState(false);
-    const [user, setUser] = useState(false);
+  const set = (key) => (v) => {
+    setForm(f => ({ ...f, [key]: v }));
+    setErrors(e => ({ ...e, [key]: undefined }));
+  };
 
-    const handleName = (e) => {
-        const value = e;
-        setName(value);
-        setNameVerify(false);
-        const regex = /^[a-zA-Z\s]{3,}$/;
-        if (regex.test(value)) {
-            setNameVerify(true);
-        }
-    };
-    const handleEmail = (e) => {
-        const value = e;
-        setEmail(value);
-        setEmailVerify(false);
-        const regex = /^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$/;
-        if (regex.test(value)) {
-            setEmailVerify(true);
-        }
-    };
-    const handlePhone = (e) => {
-        const value = e;
-        setPhone(value);
-        setPhoneVerify(false);
-        const regex = /^[0-9]{10}$/;
-        if (regex.test(value)) {
-            setPhoneVerify(true);
-        }
-    };
-    const handlePassword = (e) => {
-        const value = e;
-        setPassword(value);
-        setPasswordVerify(false);
-        const regex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
-        if (regex.test(value)) {
-            setPasswordVerify(true);
-        }
-    };
-    const handleCpassword = (e) => {
-        const value = e;
-        setCpassword(value);
-        setCpasswordVerify(false);
-        if (password === value) {
-            setCpasswordVerify(true);
-        }
-    };
+  const submit = async () => {
+    if (loading) return;
+    const next = {};
+    if (form.name.trim().length < 2) next.name = 'Enter your full name';
+    if (!isValidEmail(form.email)) next.email = 'Enter a valid email address';
+    if (!isStrongPassword(form.password)) next.password = 'Use at least 8 characters with a letter and a number';
+    if (form.confirm !== form.password || !form.confirm) next.confirm = "Passwords don't match";
+    setErrors(next);
+    setFormError('');
+    if (Object.keys(next).length) return;
 
-    const handleRegister = () => {
-        if (!nameVerify || !emailVerify || !passwordVerify || !cpasswordVerify || !phoneVerify) {
-            alert("Fill all the mandatory fields correctly");
-        } else {
-            setUser(false);
-            const userData = {
-                name: name,
-                email,
-                phone,
-                password,
-            };
-            axios.post(`${API_URL}/users/register`, userData).then((res) => {
-                if (res.data === "exists") {
-                    setUser(true);
-                } else {
-                    setName('');
-                    setEmail('');
-                    setPhone('');
-                    setPassword('');
-                    setCpassword('');
-                    navigation.navigate('Login');
-                }
-            }).catch((e) => console.log(`Error: ${e}`));
-        }
-    };
+    setLoading(true);
+    try {
+      await register(form);
+      await login(form.email, form.password);
+      await refreshUser();
+      resetTo('Main');
+    } catch (e) {
+      setFormError(e.response ? errorMessage(e) : e.message || errorMessage(e));
+      setLoading(false);
+    }
+  };
 
-    return (
-        <ImageBackground
-            source={require('../assets/back.png')}  // Set the background image path here
-            style={{ flex: 1 }}   // Ensure it takes up the entire screen
-        >
-            <SafeAreaView style={{ flex: 1, padding: 20 }}>
-                <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-                    <View className="flex items-center mb-6">
-                        <Image
-                            source={require('../assets/logIn.png')}
-                            style={{
-                                width: wp('70%'),
-                                height: wp('40%'),
-                                resizeMode: 'contain',
-                                marginBottom: 20,
-                            }}
-                        />
-                    </View>
+  return (
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.brand }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" bounces={false}>
+        <AuthHero title="Create your account" subtitle="Takes less than a minute." compact />
+        <IconButton icon="arrow-left" tone="glass" onPress={() => navigation.goBack()} accessibilityLabel="Go back" style={[styles.back, { top: insets.top + 8 }]} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + space.xl }]}>
+          <Banner message={formError} style={{ marginBottom: space.md }} />
 
-                    <View style={{ marginBottom: 20 }}>
-                        {/* Name Input */}
-                        <View style={{ borderColor: nameVerify ? 'green' : 'gray', borderWidth: 1, borderRadius: 8, marginBottom: 10 }}>
-                            <TextInput
-                                placeholder="Name"
-                                onChangeText={handleName}
-                                value={name}
-                                style={{ padding: 10, fontSize: 16, color: 'black' }}
-                            />
-                            {name.length < 1 ? null : nameVerify ? (
-                                <Icon.CheckCircle stroke="#4CAF50" />
-                            ) : (
-                                <Icon.AlertCircle stroke="#F44336" />
-                            )}
-                        </View>
+          <TextField label="Full name" icon="user" value={form.name} onChangeText={set('name')} error={errors.name}
+            autoCapitalize="words" autoComplete="name" returnKeyType="next" onSubmitEditing={() => refs.email.current?.focus()} placeholder="Your name" />
+          <TextField ref={refs.email} label="College email" icon="mail" value={form.email} onChangeText={set('email')} error={errors.email}
+            keyboardType="email-address" autoCapitalize="none" autoComplete="email" returnKeyType="next"
+            onSubmitEditing={() => refs.password.current?.focus()} placeholder="you@college.edu" />
+          <TextField ref={refs.password} label="Password" icon="lock" secure value={form.password} onChangeText={set('password')} error={errors.password}
+            hint="At least 8 characters, including a letter and a number" autoCapitalize="none" returnKeyType="next"
+            onSubmitEditing={() => refs.confirm.current?.focus()} placeholder="Create a password" />
+          <TextField ref={refs.confirm} label="Confirm password" icon="lock" secure value={form.confirm} onChangeText={set('confirm')} error={errors.confirm}
+            autoCapitalize="none" returnKeyType="go" onSubmitEditing={submit} placeholder="Repeat your password" />
 
-                        {/* Email Input */}
-                        <View style={{ borderColor: emailVerify ? 'green' : 'gray', borderWidth: 1, borderRadius: 8, marginBottom: 10 }}>
-                            <TextInput
-                                placeholder="Email"
-                                keyboardType="email-address"
-                                onChangeText={handleEmail}
-                                value={email}
-                                style={{ padding: 10, fontSize: 16, color: 'black' }}
-                            />
-                            {email.length < 1 ? null : emailVerify ? (
-                                <Icon.CheckCircle stroke="#4CAF50" />
-                            ) : (
-                                <Icon.AlertCircle stroke="#F44336" />
-                            )}
-                        </View>
+          <Button title="Create account" onPress={submit} loading={loading} style={{ marginTop: space.xs }} />
 
-                        {/* Phone Input */}
-                        <View style={{ borderColor: phoneVerify ? 'green' : 'gray', borderWidth: 1, borderRadius: 8, marginBottom: 10 }}>
-                            <TextInput
-                                placeholder="Phone"
-                                keyboardType="phone-pad"
-                                onChangeText={handlePhone}
-                                value={phone}
-                                style={{ padding: 10, fontSize: 16, color: 'black' }}
-                            />
-                            {phone.length < 1 ? null : phoneVerify ? (
-                                <Icon.CheckCircle stroke="#4CAF50" />
-                            ) : (
-                                <Icon.AlertCircle stroke="#F44336" />
-                            )}
-                        </View>
-
-                        {/* Password Input */}
-                        <View style={{ borderColor: passwordVerify ? 'green' : 'gray', borderWidth: 1, borderRadius: 8, marginBottom: 10 }}>
-                            <TextInput
-                                placeholder="Password"
-                                secureTextEntry={!showPassword}
-                                onChangeText={handlePassword}
-                                value={password}
-                                style={{ padding: 10, fontSize: 16, color: 'black' }}
-                            />
-                            {password.length < 1 ? null : passwordVerify ? (
-                                <Icon.CheckCircle stroke="#4CAF50" />
-                            ) : (
-                                <Icon.AlertCircle stroke="#F44336" />
-                            )}
-                        </View>
-
-                        {/* Confirm Password Input */}
-                        <View style={{ borderColor: cpasswordVerify ? 'green' : 'gray', borderWidth: 1, borderRadius: 8, marginBottom: 20 }}>
-                            <TextInput
-                                placeholder="Confirm Password"
-                                secureTextEntry={!showPassword}
-                                onChangeText={handleCpassword}
-                                value={cpassword}
-                                style={{ padding: 10, fontSize: 16, color: 'black' }}
-                            />
-                            {cpassword.length < 1 ? null : cpasswordVerify ? (
-                                <Icon.CheckCircle stroke="#4CAF50" />
-                            ) : (
-                                <Icon.AlertCircle stroke="#F44336" />
-                            )}
-                        </View>
-
-                        {/* Error Message */}
-                        {user && (
-                            <Text style={{ color: 'red', textAlign: 'center', fontSize: 14 }}>User already exists, please log in instead.</Text>
-                        )}
-
-                        {/* Register Button */}
-                        <TouchableOpacity
-                            onPress={handleRegister}
-                            style={{
-                                backgroundColor: '#4CAF50',
-                                paddingVertical: 12,
-                                borderRadius: 30,
-                                marginTop: 20,
-                            }}
-                        >
-                            <Text style={{ color: 'white', textAlign: 'center', fontSize: 18, fontWeight: '600' }}>Register</Text>
-                        </TouchableOpacity>
-
-                        {/* Login Navigation */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 20 }}>
-                            <Text>Already a member? </Text>
-                            <Pressable onPress={() => navigation.navigate('Login')}>
-                                <Text style={{ color: 'green', fontWeight: '600' }}>Login</Text>
-                            </Pressable>
-                        </View>
-                    </View>
-                </ScrollView>
-
-                {/* Footer Text */}
-                <View style={{ position: 'absolute', bottom: 10, width: '100%' }}>
-                    <Text style={{ textAlign: 'center', color: 'black', fontSize: 14, fontWeight: 'bold' }}>
-                        THIS APP IS DEVELOPED BY TOJIN & JAIBY
-                    </Text>
-                </View>
-            </SafeAreaView>
-        </ImageBackground>
-    );
+          <View style={styles.switchRow}>
+            <Text style={type.small}>Already have an account? </Text>
+            <PressableScale onPress={() => navigation.navigate('Login')} hitSlop={8}>
+              <Text style={[type.smallStrong, { color: colors.brand }]}>Sign in</Text>
+            </PressableScale>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
 }
+
+const styles = StyleSheet.create({
+  back: { position: 'absolute', right: space.lg },
+  sheet: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    marginTop: -40,
+    paddingHorizontal: space.xl,
+    paddingTop: space.xl,
+  },
+  switchRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: space.lg, flexWrap: 'wrap' },
+});

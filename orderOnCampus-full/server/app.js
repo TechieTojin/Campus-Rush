@@ -50,6 +50,8 @@ mongoose.connect(process.env.MONGODB_URI, {
 });
 
 // Route handlers
+// Uploaded menu/canteen images (random names, image types only, served with nosniff)
+app.use('/uploads', require('./controllers/uploadController').serveUploads);
 app.use('/', routes);
 app.use('/ai', aiRouter);
 app.use('/users', userRouter);

@@ -23,6 +23,9 @@ web-build/
 .env.*
 !.env.example
 
+# User-uploaded images (server/uploads)
+uploads/
+
 # IDE
 .idea/
 .vscode/

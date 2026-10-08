@@ -8,6 +8,14 @@ import { selectToken } from '../slices/AuthSlice';
 import OrderItems from './OrderItems';
 import { API_URL } from '../config/api';
 
+const statusColors = {
+    Placed: { backgroundColor: '#2563EB' },
+    Processing: { backgroundColor: '#D97706' },
+    Ready: { backgroundColor: '#7C3AED' },
+    Completed: { backgroundColor: '#16A34A' },
+    Cancelled: { backgroundColor: '#DC2626' },
+};
+
 export default function OrderCard({ data }) {
     const [canteenName, setCanteenName] = useState("");
     const [canteenLoc, setCanteenLoc] = useState("");
@@ -67,7 +75,7 @@ export default function OrderCard({ data }) {
             ))}
 
             <View style={styles.statusContainer}>
-                <Text style={styles.statusText}>{data.status}</Text>
+                <Text style={[styles.statusText, statusColors[data.status] || {}]}>{data.status}</Text>
             </View>
         </View>
     );
