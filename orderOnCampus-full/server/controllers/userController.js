@@ -90,7 +90,8 @@ exports.getUserById = async (req, res) => {
 
 //add fav
 exports.addFavorites = async (req, res) => {
-    const { userId, canteenId } = req.body;
+    const userId = req.user._id;
+    const { canteenId } = req.body;
     try {
         const user = await User.findById(userId);
         if (!user) {
@@ -111,21 +112,17 @@ exports.addFavorites = async (req, res) => {
 };
 //delete fav
 exports.deleteFavorite = async (req, res) => {
-    const { userId, canteenId } = req.params;
+    const userId = req.user._id;
+    const { canteenId } = req.params;
     try {
         const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
-
-        // Check if the canteenId exists in the user's favoriteCanteens array
         if (!user.favoriteCanteens.includes(canteenId)) {
             return res.status(400).json({ message: 'Canteen not found in favorites' });
         }
-
-        // Use $pull operator to remove the specified canteenId from the favoriteCanteens array
         await User.findByIdAndUpdate(userId, { $pull: { favoriteCanteens: canteenId } });
-
         return res.status(200).json({ message: 'Canteen removed from favorites successfully' });
     } catch (error) {
         console.error('Error removing favorite canteen:', error);
@@ -135,9 +132,9 @@ exports.deleteFavorite = async (req, res) => {
 
 // favorites
 exports.getFavorites = async (req, res) => {
-    const { userId } = req.params
+    const userId = req.user._id;
     try {
-        const user = await User.findById(userId).populate('favoriteCanteens');
+        const user = await User.findById(userId).select('-password').populate('favoriteCanteens');
         res.status(200).json(user.favoriteCanteens);
     } catch (error) {
         res.status(500).json({ error: 'Could not retrieve favorites' });

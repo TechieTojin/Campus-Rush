@@ -8,6 +8,7 @@ import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-nat
 import { useDispatch, useSelector } from 'react-redux';
 import CartIcon from '../components/CartIcon';
 import DishRow from '../components/DishRow';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { selectToken, setToken } from '../slices/AuthSlice';
 import { selectCanteen, setCanteen } from '../slices/canteenSlice';
 import { API_URL } from '../config/api';
@@ -37,24 +38,22 @@ export default function CanteenScreen() {
     }
   }, [])
 
-  const toggleFav = () => {
+  const getAuthHeaders = async () => {
+    const storedToken = await AsyncStorage.getItem('token');
+    return { headers: { Authorization: `Bearer ${storedToken}` } };
+  };
+
+  const toggleFav = async () => {
     favorites ? setFavorties(false) : setFavorties(true)
-    const data = {
-      canteenId: item._id,
-      userId: userId,
-    }
+    const authConfig = await getAuthHeaders();
     if (!favorites) {
-      axios.post(`${API_URL}/users/set-fav`, data).then((res) => {
-        // alert("added to favorite");
-        // console.log(res);
+      axios.post(`${API_URL}/users/set-fav`, { canteenId: item._id }, authConfig).then((res) => {
         dispatch(setToken(token))
       }).catch(err => console.log(err))
     } else {
-      axios.delete(`${API_URL}/users/${userId}/favoriteCanteens/${item._id}`).then((res) => {
-      // alert("removed from favorite");
-      // console.log(res);
-      dispatch(setToken(token))
-    }).catch(err => console.log(err))
+      axios.delete(`${API_URL}/users/favoriteCanteens/${item._id}`, authConfig).then((res) => {
+        dispatch(setToken(token))
+      }).catch(err => console.log(err))
     }
   }
 

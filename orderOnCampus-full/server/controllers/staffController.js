@@ -263,6 +263,21 @@ exports.updateOrderStatus = async (req, res) => {
             return res.status(403).json({ message: "Not authorized to update this order" });
         }
 
+        const allowedTransitions = {
+            'Placed': ['Processing', 'Cancelled'],
+            'Processing': ['Ready', 'Completed'],
+            'Ready': ['Completed'],
+            'Completed': [],
+            'Cancelled': []
+        };
+
+        const allowed = allowedTransitions[order.status] || [];
+        if (!allowed.includes(newStatus)) {
+            return res.status(400).json({
+                message: `Cannot transition from '${order.status}' to '${newStatus}'. Allowed: ${allowed.length ? allowed.join(', ') : 'none (terminal status)'}`
+            });
+        }
+
         order.status = newStatus;
         await order.save({ validateBeforeSave: true });
 

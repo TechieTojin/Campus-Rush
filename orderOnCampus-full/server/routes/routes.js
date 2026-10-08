@@ -56,11 +56,11 @@ router.post('/users/login', UserController.loginUser);
 //Get user
 router.post('/users/get-user', UserController.getUser);
 // Add favorites
-router.post('/users/set-fav',UserController.addFavorites)
+router.post('/users/set-fav', Auth.verifyStudent, UserController.addFavorites)
 //delete favorites
-router.delete('/users/:userId/favoriteCanteens/:canteenId', UserController.deleteFavorite);
+router.delete('/users/favoriteCanteens/:canteenId', Auth.verifyStudent, UserController.deleteFavorite);
 // Get user favorites
-router.get('/users/:userId/favorites', UserController.getFavorites);
+router.get('/users/favorites', Auth.verifyStudent, UserController.getFavorites);
 // Get user orders
 router.get('/users/:userId/orders', UserController.getOrders);
 // Place order
