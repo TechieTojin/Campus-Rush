@@ -78,29 +78,45 @@ export const openingHours = (canteen = {}) =>
   canteen.openingTime && canteen.closingTime ? `${formatClock(canteen.openingTime)} – ${formatClock(canteen.closingTime)}` : '';
 
 const FOOD_RULES = [
-  { re: /biryani|pulao|rice|meals|thali|khichdi/i, icon: 'rice', tint: '#FFF1DE', color: '#C9761A' },
-  { re: /cold coffee|frappe|shake|smoothie|juice|lime|soda|cola|mojito|lassi/i, icon: 'bottle-soda', tint: '#E6F2FB', color: '#2B6CA3' },
-  { re: /coffee|latte|cappuccino|espresso|mocha/i, icon: 'coffee', tint: '#F3E9E1', color: '#7A4A2A' },
-  { re: /tea|chai/i, icon: 'tea', tint: '#EEF5E4', color: '#5A7A2A' },
-  { re: /dosa|idli|vada|uttapam|upma|pongal|appam/i, icon: 'pot-steam', tint: '#FDF0D9', color: '#B8741A' },
-  { re: /paratha|roti|chapati|naan|kulcha|puri/i, icon: 'bread-slice', tint: '#FBEBDD', color: '#A85F2A' },
-  { re: /pizza/i, icon: 'pizza', tint: '#FDE8E3', color: '#C2452D' },
-  { re: /burger|sandwich|wrap|roll|frankie/i, icon: 'hamburger', tint: '#FDEEDC', color: '#B4651E' },
-  { re: /noodle|pasta|maggi|chowmein/i, icon: 'noodles', tint: '#FFF4D6', color: '#A98410' },
-  { re: /egg|omelette/i, icon: 'egg-fried', tint: '#FFF7D9', color: '#B08A12' },
-  { re: /chicken|mutton|fish|kebab|tikka/i, icon: 'food-drumstick', tint: '#FBE7DF', color: '#B04A2A' },
-  { re: /cake|pastry|brownie|muffin|cookie|donut/i, icon: 'cupcake', tint: '#FCE8F0', color: '#B23F73' },
-  { re: /ice ?cream|sundae|kulfi/i, icon: 'ice-cream', tint: '#F1EAFB', color: '#7047B8' },
-  { re: /puff|croissant|bun|bread|samosa|pakora|bajji/i, icon: 'food-croissant', tint: '#FBEBDD', color: '#A85F2A' },
-  { re: /salad|fruit|bowl/i, icon: 'bowl-mix', tint: '#E8F5E9', color: '#2F7A3A' },
+  { re: /biryani|pulao|rice|meals|thali|khichdi/i, label: 'Biryani & rice', icon: 'rice', tint: '#FFF1DE', color: '#C9761A' },
+  { re: /cold coffee|frappe|shake|smoothie|juice|lime|soda|cola|mojito|lassi/i, label: 'Cold drinks', icon: 'bottle-soda', tint: '#E6F2FB', color: '#2B6CA3' },
+  { re: /coffee|latte|cappuccino|espresso|mocha/i, label: 'Coffee', icon: 'coffee', tint: '#F3E9E1', color: '#7A4A2A' },
+  { re: /tea|chai/i, label: 'Tea', icon: 'tea', tint: '#EEF5E4', color: '#5A7A2A' },
+  { re: /dosa|idli|vada|uttapam|upma|pongal|appam/i, label: 'Dosa & South Indian', icon: 'pot-steam', tint: '#FDF0D9', color: '#B8741A' },
+  { re: /paratha|roti|chapati|naan|kulcha|puri/i, label: 'Breads', icon: 'bread-slice', tint: '#FBEBDD', color: '#A85F2A' },
+  { re: /pizza/i, label: 'Pizza', icon: 'pizza', tint: '#FDE8E3', color: '#C2452D' },
+  { re: /burger|sandwich|wrap|roll|frankie/i, label: 'Burgers & sandwiches', icon: 'hamburger', tint: '#FDEEDC', color: '#B4651E' },
+  { re: /noodle|pasta|maggi|chowmein/i, label: 'Noodles & pasta', icon: 'noodles', tint: '#FFF4D6', color: '#A98410' },
+  { re: /egg|omelette/i, label: 'Egg dishes', icon: 'egg-fried', tint: '#FFF7D9', color: '#B08A12' },
+  { re: /chicken|mutton|fish|kebab|tikka/i, label: 'Chicken & meat', icon: 'food-drumstick', tint: '#FBE7DF', color: '#B04A2A' },
+  { re: /cake|pastry|brownie|muffin|cookie|donut/i, label: 'Desserts', icon: 'cupcake', tint: '#FCE8F0', color: '#B23F73' },
+  { re: /ice ?cream|sundae|kulfi/i, label: 'Ice cream', icon: 'ice-cream', tint: '#F1EAFB', color: '#7047B8' },
+  { re: /puff|croissant|bun|bread|samosa|pakora|bajji/i, label: 'Snacks & bakes', icon: 'food-croissant', tint: '#FBEBDD', color: '#A85F2A' },
+  { re: /salad|fruit|bowl/i, label: 'Salads & bowls', icon: 'bowl-mix', tint: '#E8F5E9', color: '#2F7A3A' },
 ];
 
+// Craving groups that actually have dishes on today's menus (derived from dish names, never invented).
+export const cravings = (entries = []) => {
+  const groups = new Map();
+  entries.forEach((e) => {
+    if (!e?.item?.available) return;
+    const rule = FOOD_RULES.find(r => r.re.test(e.item.name));
+    if (!rule) return;
+    const g = groups.get(rule.label) || { ...rule, count: 0, sample: e.item.name.split(/\s+/)[0] };
+    g.count += 1;
+    groups.set(rule.label, g);
+  });
+  return [...groups.values()].sort((a, b) => b.count - a.count);
+};
+
+export const matchesCraving = (label, name = '') => !!FOOD_RULES.find(r => r.label === label)?.re.test(name);
+
 export const foodVisual = (name = '') =>
-  FOOD_RULES.find(r => r.re.test(name)) || { icon: 'silverware-fork-knife', tint: '#E1F0EE', color: '#0E6B6B' };
+  FOOD_RULES.find(r => r.re.test(name)) || { icon: 'silverware-fork-knife', tint: '#DCEEEA', color: '#0B5E57' };
 
 const CANTEEN_PALETTES = [
-  { bg: '#0E6B6B', fg: '#BFE3DF' },
-  { bg: '#B4561F', fg: '#F6CFAE' },
+  { bg: '#0B5E57', fg: '#BFE3DD' },
+  { bg: '#A9541C', fg: '#F6CFAE' },
   { bg: '#3D4F8C', fg: '#C4CDF0' },
   { bg: '#6B4E9B', fg: '#D9CCF0' },
   { bg: '#2F6B3A', fg: '#BFE2C5' },

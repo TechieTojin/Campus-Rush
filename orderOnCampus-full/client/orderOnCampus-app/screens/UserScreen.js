@@ -1,28 +1,15 @@
-import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import React, { useCallback } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Card, IconButton, PressableScale } from '../components/ui/primitives';
+import { Banner, StatusBarScrim } from '../components/ui/feedback';
+import { Avatar, Card, IconButton, ListRow, PressableScale } from '../components/ui/primitives';
 import { ACTIVE_STATUSES, colors, radius, shadow, space, type } from '../constants/theme';
 import { refreshUser, signOut, useUser } from '../hooks/useSession';
-import { initials } from '../utils/format';
+import { formatPrice } from '../utils/format';
 
-function MenuRow({ icon, label, hint, onPress, last, tone }) {
-  return (
-    <PressableScale onPress={onPress} scaleTo={0.985} accessibilityLabel={label} style={[styles.row, !last && styles.rowBorder]}>
-      <View style={[styles.rowIcon, tone === 'danger' && { backgroundColor: colors.dangerSoft }]}>
-        <Feather name={icon} size={18} color={tone === 'danger' ? colors.danger : colors.brand} />
-      </View>
-      <View style={{ flex: 1, marginLeft: space.sm }}>
-        <Text style={[type.bodyStrong, tone === 'danger' && { color: colors.danger }]}>{label}</Text>
-        {hint ? <Text style={type.small} numberOfLines={1}>{hint}</Text> : null}
-      </View>
-      {tone !== 'danger' ? <Feather name="chevron-right" size={18} color={colors.faint} /> : null}
-    </PressableScale>
-  );
-}
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export default function UserScreen() {
   const navigation = useNavigation();
@@ -31,84 +18,92 @@ export default function UserScreen() {
 
   useFocusEffect(useCallback(() => { refreshUser().catch(() => {}); }, []));
 
-  const orders = user?.orders || [];
-  const activeCount = orders.filter(o => ACTIVE_STATUSES.includes(o?.status)).length;
-  const completedCount = orders.filter(o => o?.status === 'Completed').length;
+  const orders = (user?.orders || []).filter(o => o && typeof o === 'object');
+  const activeCount = orders.filter(o => ACTIVE_STATUSES.includes(o.status)).length;
+  const collected = orders.filter(o => o.status === 'Completed');
+  const spent = collected.reduce((s, o) => s + (Number(o.totalPrice) || 0), 0);
   const favCount = user?.favoriteCanteens?.length || 0;
+  const since = user?.createdAt ? new Date(user.createdAt) : null;
 
   const confirmLogout = () =>
-    Alert.alert('Log out?', "You'll need to sign in again to place orders.", [
+    Alert.alert('Sign out?', "Your cart and recently viewed dishes will be cleared from this phone.", [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Log out', style: 'destructive', onPress: signOut },
+      { text: 'Sign out', style: 'destructive', onPress: signOut },
     ]);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top + space.sm, paddingHorizontal: space.lg, paddingBottom: space.xxl }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + space.sm, paddingHorizontal: space.lg, paddingBottom: space.xxl }}>
       <Text style={[type.h1, { marginBottom: space.md }]}>Profile</Text>
 
       <View style={styles.profile}>
-        <View style={styles.avatar}><Text style={styles.avatarText}>{initials(user?.name)}</Text></View>
-        <View style={{ flex: 1, marginHorizontal: space.md }}>
-          <Text style={[type.h2, { color: '#fff' }]} numberOfLines={1}>{user?.name || 'Student'}</Text>
-          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14 }} numberOfLines={1}>{user?.email}</Text>
+        <View style={styles.profileGlow} />
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Avatar name={user?.name} size={62} />
+          <View style={{ flex: 1, marginHorizontal: space.md }}>
+            <Text style={[type.h2, { color: '#fff' }]} numberOfLines={1}>{user?.name || 'Student'}</Text>
+            <Text style={{ color: colors.onBrandMuted, fontSize: 14 }} numberOfLines={1}>{user?.email}</Text>
+            {since ? <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 2 }}>Member since {MONTHS[since.getMonth()]} {since.getFullYear()}</Text> : null}
+          </View>
+          <IconButton icon="edit-2" tone="glass" size={40} onPress={() => navigation.navigate('EditProfile')} accessibilityLabel="Edit profile" />
         </View>
-        <IconButton icon="edit-2" tone="glass" size={40} onPress={() => navigation.navigate('EditProfile')} accessibilityLabel="Edit profile" />
       </View>
 
       <View style={styles.stats}>
-        <Stat value={orders.length} label="Orders" onPress={() => navigation.navigate('Orders')} />
-        <Stat value={activeCount} label="Active" onPress={() => navigation.navigate('Orders')} />
-        <Stat value={completedCount} label="Collected" onPress={() => navigation.navigate('Orders')} />
-        <Stat value={favCount} label="Favorites" onPress={() => navigation.navigate('Favorites')} />
+        <Stat value={orders.length} label="Orders" onPress={() => navigation.navigate('Orders', { tab: 'past' })} />
+        <Stat value={activeCount} label="Active" onPress={() => navigation.navigate('Orders', { tab: 'active' })} />
+        <Stat value={favCount} label="Saved" onPress={() => navigation.navigate('Favorites')} />
+        <Stat value={formatPrice(spent)} label="Spent" small onPress={() => navigation.navigate('Orders', { tab: 'past' })} />
       </View>
 
-      <Text style={styles.section}>ACCOUNT</Text>
+      {user?.status === 'suspended' ? (
+        <Banner tone="danger" title="Account suspended" message={`You can see your orders but can't place new ones.${user.statusReason ? ` Reason: ${user.statusReason}.` : ''}`} action="Contact support" onAction={() => navigation.navigate('Help')} style={{ marginTop: space.md }} />
+      ) : null}
+
+      <Text style={styles.section}>Account</Text>
       <Card style={styles.group}>
-        <MenuRow icon="user" label="Edit profile" hint="Name and email" onPress={() => navigation.navigate('EditProfile')} />
-        <MenuRow icon="shield" label="Change password" hint="Keep your account secure" onPress={() => navigation.navigate('ChangePassword')} last />
+        <ListRow icon="user" label="Edit profile" hint="Name and email" onPress={() => navigation.navigate('EditProfile')} />
+        <ListRow icon="shield" label="Change password" hint="Keep your account secure" onPress={() => navigation.navigate('ChangePassword')} last />
       </Card>
 
-      <Text style={styles.section}>ACTIVITY</Text>
+      <Text style={styles.section}>Activity</Text>
       <Card style={styles.group}>
-        <MenuRow icon="package" label="My orders" hint={activeCount ? `${activeCount} in progress` : 'Order history'} onPress={() => navigation.navigate('Orders')} />
-        <MenuRow icon="heart" label="Favorite canteens" hint={`${favCount} saved`} onPress={() => navigation.navigate('Favorites')} last />
+        <ListRow icon="package" label="My orders" hint={activeCount ? `${activeCount} in progress` : `${orders.length} in your history`} onPress={() => navigation.navigate('Orders')} />
+        <ListRow icon="heart" iconTone="accent" label="Saved canteens" hint={`${favCount} saved`} onPress={() => navigation.navigate('Favorites')} last />
       </Card>
 
-      <Text style={styles.section}>SUPPORT</Text>
+      <Text style={styles.section}>App</Text>
       <Card style={styles.group}>
-        <MenuRow icon="help-circle" label="Help & support" hint="FAQs and contact" onPress={() => navigation.navigate('Help')} />
-        <MenuRow icon="file-text" label="Privacy policy" hint="What we store and why" onPress={() => navigation.navigate('Privacy')} last />
+        <ListRow icon="settings" iconTone="neutral" label="Settings" hint="Connection, history on this phone" onPress={() => navigation.navigate('Settings')} />
+        <ListRow icon="help-circle" iconTone="neutral" label="Help & support" hint="FAQs and contact Campus Rush" onPress={() => navigation.navigate('Help')} />
+        <ListRow icon="file-text" iconTone="neutral" label="Privacy" hint="What we store and why" onPress={() => navigation.navigate('Privacy')} last />
       </Card>
 
       <Card style={[styles.group, { marginTop: space.lg }]}>
-        <MenuRow icon="log-out" label="Log out" onPress={confirmLogout} last tone="danger" />
+        <ListRow icon="log-out" label="Sign out" onPress={confirmLogout} last danger />
       </Card>
 
-      <Text style={[type.small, { textAlign: 'center', marginTop: space.lg }]}>
-        Campus Rush v{Constants.expoConfig?.version || '1.0.0'} · Made for Christ University
-      </Text>
+      <Text style={[type.caption, { textAlign: 'center', marginTop: space.lg }]}>Campus Rush · v{Constants.expoConfig?.version || '1.0.0'}</Text>
     </ScrollView>
+    <StatusBarScrim />
+    </View>
   );
 }
 
-function Stat({ value, label, onPress }) {
+function Stat({ value, label, onPress, small }) {
   return (
     <PressableScale onPress={onPress} scaleTo={0.95} style={styles.stat} accessibilityLabel={`${value} ${label}`}>
-      <Text style={type.h2}>{value}</Text>
+      <Text style={[type.h2, small && { fontSize: 16 }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
       <Text style={type.caption}>{label}</Text>
     </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
-  profile: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.brand, padding: space.lg, borderRadius: radius.lg },
-  avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 22, fontWeight: '800', color: colors.ink },
-  stats: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.lg, marginTop: -14, marginHorizontal: space.sm, paddingVertical: space.sm, ...shadow.card },
-  stat: { flex: 1, alignItems: 'center' },
+  profile: { backgroundColor: colors.brand, padding: space.lg, paddingBottom: space.xxl, borderRadius: radius.xl, overflow: 'hidden' },
+  profileGlow: { position: 'absolute', width: 240, height: 240, borderRadius: 120, backgroundColor: colors.brandDeep, right: -90, top: -110, opacity: 0.7 },
+  stats: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.lg, marginTop: -22, marginHorizontal: space.sm, paddingVertical: space.sm, borderWidth: 1, borderColor: colors.divider, ...shadow.raised },
+  stat: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
   section: { ...type.overline, marginTop: space.lg, marginBottom: space.xs },
   group: { paddingVertical: 0, paddingHorizontal: space.md },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.divider },
-  rowIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center' },
 });

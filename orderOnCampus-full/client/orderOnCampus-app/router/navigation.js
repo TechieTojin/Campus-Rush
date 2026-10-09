@@ -21,6 +21,10 @@ import OrderSuccessScreen from '../screens/OrderSuccessScreen';
 import PrivacyScreen from '../screens/PrivacyScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import SearchScreen from '../screens/SearchScreen';
+import SettingsScreen from '../screens/SettingsScreen';
+import { loadCart } from '../services/storage';
+import { setCart } from '../slices/CartSlice';
+import { enableCartPersistence, store } from '../store';
 import { clearSession, getToken, isNetworkError, onUnauthorized } from '../services/api';
 import TabNavigation from './tabNavigation';
 
@@ -42,12 +46,15 @@ function BootScreen() {
   }, [fade, scale]);
   return (
     <View style={styles.boot}>
-      <StatusBar style="light" />
+      <StatusBar style="light" translucent backgroundColor="transparent" />
+      <View style={styles.bootGlow} />
+      <View style={styles.bootRing} />
       <Animated.View style={{ alignItems: 'center', opacity: fade, transform: [{ scale }] }}>
         <View style={styles.bootMark}>
-          <MaterialCommunityIcons name="coffee" size={44} color={colors.brand} />
+          <MaterialCommunityIcons name="silverware-fork-knife" size={40} color={colors.brand} />
+          <View style={styles.bootDot} />
         </View>
-        <Text style={styles.bootTitle}>CAMPUS RUSH</Text>
+        <Text style={styles.bootTitle}>Campus Rush</Text>
         <Text style={styles.bootTag}>Order ahead. Skip the queue.</Text>
       </Animated.View>
     </View>
@@ -72,7 +79,13 @@ export default function Navigation() {
           else await clearSession();
         }
       }
+      if (route === 'Main') {
+        // Bring back the cart from the last session; it's re-checked against live menus before checkout.
+        const saved = await loadCart();
+        if (saved?.canteen && saved.items?.length) store.dispatch(setCart(saved));
+      }
       await minDelay;
+      enableCartPersistence();
       setInitialRoute(route);
     })();
   }, []);
@@ -100,14 +113,18 @@ export default function Navigation() {
         <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
         <Stack.Screen name="Help" component={HelpScreen} />
         <Stack.Screen name="Privacy" component={PrivacyScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  boot: { flex: 1, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
-  bootMark: { width: 92, height: 92, borderRadius: 30, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginBottom: 20, transform: [{ rotate: '-6deg' }] },
-  bootTitle: { color: '#fff', fontSize: 30, fontWeight: '900', letterSpacing: 4 },
-  bootTag: { color: 'rgba(255,255,255,0.8)', fontSize: 15, marginTop: 8, fontWeight: '500' },
+  boot: { flex: 1, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  bootGlow: { position: 'absolute', width: 420, height: 420, borderRadius: 210, backgroundColor: colors.brandDeep, top: -160, right: -180, opacity: 0.7 },
+  bootRing: { position: 'absolute', width: 260, height: 260, borderRadius: 130, borderWidth: 30, borderColor: 'rgba(244,162,58,0.14)', bottom: -90, left: -110 },
+  bootMark: { width: 96, height: 96, borderRadius: 32, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginBottom: 22, transform: [{ rotate: '-6deg' }] },
+  bootDot: { position: 'absolute', width: 18, height: 18, borderRadius: 9, backgroundColor: colors.accent, top: -5, right: -5, borderWidth: 3, borderColor: colors.brand },
+  bootTitle: { color: '#fff', fontSize: 32, fontWeight: '900', letterSpacing: -0.5 },
+  bootTag: { color: colors.onBrandMuted, fontSize: 15, marginTop: 6, fontWeight: '500' },
 });

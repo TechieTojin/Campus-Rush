@@ -6,6 +6,8 @@ import { showToast } from '../components/ui/feedback';
 import { addFavorite, clearSession, errorMessage, fetchMe, removeFavorite } from '../services/api';
 import { clearUser, selectUser, setUser } from '../slices/AuthSlice';
 import { emptyCart } from '../slices/CartSlice';
+import { clearLocalCart } from '../services/storage';
+import { clearRecent } from './useRecent';
 import { store } from '../store';
 
 export const navigationRef = createNavigationContainerRef();
@@ -20,6 +22,9 @@ export async function signOut() {
   await clearSession();
   store.dispatch(clearUser());
   store.dispatch(emptyCart());
+  // Device-local conveniences belong to the signed-in student; don't leave them for the next person.
+  clearRecent();
+  clearLocalCart();
   resetTo('Login');
 }
 
@@ -56,7 +61,7 @@ export function useFavorite(canteenId) {
       else await addFavorite(canteenId);
       const fresh = await fetchMe();
       dispatch(setUser(fresh));
-      showToast(isFavorite ? `Removed ${canteenName || 'canteen'} from favorites` : `Saved ${canteenName || 'canteen'} to favorites`, 'heart');
+      showToast(isFavorite ? `Removed ${canteenName || 'canteen'} from saved` : `Saved ${canteenName || 'canteen'}`, 'heart');
     } catch (e) {
       if (e?.response?.status !== 401) Alert.alert('Favorites', errorMessage(e));
     } finally {

@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import { useRoute } from '@react-navigation/native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import SupportContact from '../components/SupportContact';
@@ -23,9 +24,11 @@ const TOPICS = [['order', 'An order'], ['payment', 'Payment'], ['account', 'My a
 const STATUS = { open: ['Open', colors.warning], in_progress: ['In progress', colors.brand], resolved: ['Resolved', colors.success], closed: ['Closed', colors.muted] };
 
 export default function HelpScreen() {
-  const [open, setOpen] = useState(0);
+  const { params } = useRoute();
+  // Opened from an order: pre-fill the request so support knows which order it's about.
+  const [open, setOpen] = useState(params?.orderRef ? -1 : 0);
   const [topic, setTopic] = useState('order');
-  const [subject, setSubject] = useState('');
+  const [subject, setSubject] = useState(params?.orderRef ? `Help with order ${params.orderRef}` : '');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');

@@ -15,13 +15,14 @@ export function AuthHero({ title, subtitle, compact }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.hero, { paddingTop: insets.top + space.xl }, compact && { paddingBottom: 56 }]}>
-      <MaterialCommunityIcons name="coffee" size={180} color="rgba(255,255,255,0.07)" style={styles.heroDecor1} />
-      <MaterialCommunityIcons name="silverware-fork-knife" size={110} color="rgba(255,255,255,0.07)" style={styles.heroDecor2} />
+      <View style={styles.heroGlow} />
+      <View style={styles.heroRing} />
+      <MaterialCommunityIcons name="silverware-fork-knife" size={120} color="rgba(255,255,255,0.06)" style={styles.heroDecor2} />
       <View style={styles.brandRow}>
         <View style={styles.brandMark}>
-          <MaterialCommunityIcons name="coffee" size={22} color={colors.brand} />
+          <MaterialCommunityIcons name="silverware-fork-knife" size={20} color={colors.brand} />
         </View>
-        <Text style={styles.brandName}>CAMPUS RUSH</Text>
+        <Text style={styles.brandName}>Campus Rush</Text>
       </View>
       <Text style={styles.heroTitle}>{title}</Text>
       {subtitle ? <Text style={styles.heroSub}>{subtitle}</Text> : null}
@@ -119,11 +120,12 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   hero: { backgroundColor: colors.brand, paddingHorizontal: space.xl, paddingBottom: 72, overflow: 'hidden' },
-  heroDecor1: { position: 'absolute', right: -40, top: 10 },
-  heroDecor2: { position: 'absolute', left: -20, bottom: 0, transform: [{ rotate: '-20deg' }] },
+  heroGlow: { position: 'absolute', width: 360, height: 360, borderRadius: 180, backgroundColor: colors.brandDeep, top: -150, right: -150, opacity: 0.7 },
+  heroRing: { position: 'absolute', width: 200, height: 200, borderRadius: 100, borderWidth: 24, borderColor: 'rgba(244,162,58,0.16)', top: 30, right: -80 },
+  heroDecor2: { position: 'absolute', left: -24, bottom: 6, transform: [{ rotate: '-20deg' }] },
   brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: space.xl },
-  brandMark: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-6deg' }] },
-  brandName: { color: '#fff', fontWeight: '900', fontSize: 17, letterSpacing: 2.5, marginLeft: 10 },
+  brandMark: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-6deg' }] },
+  brandName: { color: '#fff', fontWeight: '900', fontSize: 19, letterSpacing: -0.2, marginLeft: 10 },
   heroTitle: { color: '#fff', fontSize: 32, lineHeight: 38, fontWeight: '800', letterSpacing: -0.6, maxWidth: 300 },
   heroSub: { color: 'rgba(255,255,255,0.82)', fontSize: 15, lineHeight: 22, marginTop: space.xs, maxWidth: 300 },
   sheet: {
