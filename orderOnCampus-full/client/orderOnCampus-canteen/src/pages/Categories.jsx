@@ -9,6 +9,7 @@ import { Dialog } from '../components/ui/Overlay';
 import { api, errorMessage } from '../lib/api';
 import { useAsync, useDocumentTitle } from '../lib/hooks';
 import { useSession } from '../lib/sessionContext';
+import ManagerOnly from '../components/ManagerOnly';
 import { useToast } from '../components/ui/useToast';
 
 const validName = (n, list, except) => {
@@ -20,7 +21,7 @@ const validName = (n, list, except) => {
 
 export default function Categories() {
   useDocumentTitle('Categories');
-  const { canteen } = useSession();
+  const { canteen, isManager } = useSession();
   const toast = useToast();
   const { data, error, loading, reload, setData } = useAsync(() => api.categories(canteen._id), [canteen._id]);
   const [name, setName] = useState('');
@@ -33,6 +34,7 @@ export default function Categories() {
   const [moveTo, setMoveTo] = useState('');
 
   const list = data?.categories || [];
+  if (!isManager) return <ManagerOnly what="menu categories" />;
 
   const add = async (e) => {
     e.preventDefault();

@@ -7,9 +7,11 @@ import { FoodArt, ScreenHeader } from '../components/ui/food';
 import { Button, Card, StatusBadge } from '../components/ui/primitives';
 import { ACTIVE_STATUSES, colors, ORDER_STATUS, PROGRESS_STEPS, radius, space, type } from '../constants/theme';
 import { errorMessage, getMyOrders } from '../services/api';
+import { useRealtime, useRealtimeStatus } from '../hooks/useRealtime';
 import { formatDate, formatPrice, orderLines, orderRef } from '../utils/format';
 
-const POLL_MS = 6000;
+// Status changes arrive over the realtime connection; polling is a slow safety net.
+const POLL_MS = 30000;
 
 function Progress({ status }) {
   const current = PROGRESS_STEPS.indexOf(status);
@@ -66,6 +68,9 @@ export default function OrderDetailScreen() {
     }, [load])
   );
 
+  useRealtime('order.updated', (e) => { if (e.type === 'resync' || e.orderId === params.orderId) load(); }, { debounceMs: 100 });
+  const liveConnection = useRealtimeStatus() === 'live';
+
   const onRefresh = async () => {
     setRefreshing(true);
     await load();
@@ -115,7 +120,7 @@ export default function OrderDetailScreen() {
         {active ? (
           <View style={styles.live}>
             <View style={styles.liveDot} />
-            <Text style={type.caption}>Live — refreshes every few seconds</Text>
+            <Text style={type.caption}>{liveConnection ? 'Live — updates the moment the canteen changes it' : 'Reconnecting… pull down to refresh'}</Text>
           </View>
         ) : null}
 

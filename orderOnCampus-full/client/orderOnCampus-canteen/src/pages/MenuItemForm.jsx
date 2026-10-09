@@ -13,6 +13,7 @@ import { money } from '../lib/format';
 import { useSession } from '../lib/sessionContext';
 import { useToast } from '../components/ui/useToast';
 import { DIETARY } from '../lib/constants';
+import ManagerOnly from '../components/ManagerOnly';
 
 const FIX_FIELDS = 'Fix the highlighted fields and try again.';
 const EMPTY = { name: '', description: '', price: '', category: '', image: '', available: true, prepTime: '', dietary: '' };
@@ -47,7 +48,7 @@ export default function MenuItemForm() {
   const { itemId } = useParams();
   const editing = !!itemId;
   useDocumentTitle(editing ? 'Edit menu item' : 'Add menu item');
-  const { canteen } = useSession();
+  const { canteen, isManager } = useSession();
   const navigate = useNavigate();
   const toast = useToast();
   const nameRef = useRef(null);
@@ -109,7 +110,7 @@ export default function MenuItemForm() {
       const body = toBody(form);
       if (editing) {
         await api.updateItem(canteen._id, itemId, body);
-        toast.success(`${body.name} saved. Students see the change next time they open or refresh your menu.`, { title: 'Item updated' });
+        toast.success(`${body.name} saved. Students with the app open see the change within seconds.`, { title: 'Item updated' });
         setOriginal(form);
         navigate('/menu');
       } else {
@@ -135,6 +136,7 @@ export default function MenuItemForm() {
 
   const cancel = () => (dirty ? setLeaving(true) : navigate('/menu'));
 
+  if (!isManager) return <ManagerOnly what="menu items" />;
   if (loading) return <Card className="p-6 max-w-5xl"><SkeletonRows rows={6} /></Card>;
   if (loadError) return <ErrorState message={loadError} onRetry={() => navigate(0)} />;
 

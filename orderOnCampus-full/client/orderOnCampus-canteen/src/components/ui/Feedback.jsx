@@ -100,7 +100,7 @@ export function ToastProvider({ children }) {
           const Icon = BANNER_ICON[t.tone];
           const color = t.tone === 'danger' ? 'text-red-400' : t.tone === 'info' ? 'text-brand-300' : 'text-emerald-400';
           return (
-            <div key={t.id} role={t.tone === 'danger' ? 'alert' : 'status'} className="pointer-events-auto animate-rise-in w-full sm:w-[380px] flex items-start gap-3 rounded-xl bg-ink text-white px-4 py-3 shadow-raised">
+            <div key={t.id} role={t.tone === 'danger' ? 'alert' : 'status'} data-toast className="pointer-events-auto animate-rise-in w-full sm:w-[380px] flex items-start gap-3 rounded-xl bg-ink text-white px-4 py-3 shadow-raised">
               <Icon className={`h-5 w-5 mt-0.5 shrink-0 ${color}`} aria-hidden />
               <div className="flex-1 min-w-0 text-[14px]">
                 {t.title ? <p className="font-semibold">{t.title}</p> : null}

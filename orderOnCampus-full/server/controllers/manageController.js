@@ -24,6 +24,8 @@ const addDays = (key, n) => dayKey(new Date(startOfDay(key).getTime() + n * 8640
 const round2 = (n) => Math.round(n * 100) / 100;
 const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const fail = (res, status, message) => res.status(status).json({ message });
+// Activity entries show whether a change came from the canteen's staff or a Campus Rush admin.
+const actorOf = (res) => (res.locals.admin ? 'admin' : 'staff');
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const menuIds = (canteen) => canteen.menu.map(id => id.toString());
@@ -119,6 +121,11 @@ exports.updateCanteen = async (req, res) => {
         update.openStatus = b.openStatus;
     }
     if (!Object.keys(update).length) return fail(res, 400, 'Nothing to update');
+    if (update.openStatus === true && canteen.status && canteen.status !== 'active') {
+        return fail(res, 403, canteen.status === 'pending'
+            ? 'This canteen is waiting for Campus Rush approval and can’t take orders yet.'
+            : 'This canteen has been suspended by Campus Rush and can’t take orders.');
+    }
 
     try {
         const before = canteen.openStatus;
@@ -126,10 +133,10 @@ exports.updateCanteen = async (req, res) => {
         await canteen.save();
         const changed = Object.keys(update).filter(k => PROFILE_FIELDS.includes(k));
         if (update.openStatus !== undefined && update.openStatus !== before) {
-            Activity.record({ canteen: canteen._id, type: 'canteen_updated', message: update.openStatus ? 'Canteen opened for orders' : 'Canteen stopped taking orders' });
+            Activity.record({ actor: actorOf(res), canteen: canteen._id, type: 'canteen_updated', message: update.openStatus ? 'Canteen opened for orders' : 'Canteen stopped taking orders' });
         }
         if (changed.some(k => k !== 'openStatus')) {
-            Activity.record({ canteen: canteen._id, type: 'canteen_updated', message: 'Canteen profile updated' });
+            Activity.record({ actor: actorOf(res), canteen: canteen._id, type: 'canteen_updated', message: 'Canteen profile updated' });
         }
         return res.json({ status: 'ok', data: shapeCanteen(canteen) });
     } catch (error) {
@@ -217,7 +224,7 @@ exports.createMenuItem = async (req, res) => {
         if (duplicate) return fail(res, 409, `"${duplicate.name}" is already on your menu`);
         const item = await MenuItem.create({ available: true, ...data, canteen: canteen._id });
         await Canteen.updateOne({ _id: canteen._id }, { $push: { menu: item._id } });
-        Activity.record({ canteen: canteen._id, type: 'item_created', item: item._id, message: `Added "${item.name}" to the menu at ₹${item.price}` });
+        Activity.record({ actor: actorOf(res), canteen: canteen._id, type: 'item_created', item: item._id, message: `Added "${item.name}" to the menu at ₹${item.price}` });
         return res.status(201).json({ status: 'ok', data: item });
     } catch (err) {
         console.error('Error creating menu item:', err);
@@ -246,7 +253,7 @@ exports.updateMenuItem = async (req, res) => {
         if (data.price !== undefined && data.price !== before.price) changes.push(`price ₹${before.price} → ₹${data.price}`);
         if (data.available !== undefined && data.available !== before.available) changes.push(data.available ? 'marked available' : 'marked unavailable');
         if (data.name && data.name !== before.name) changes.push(`renamed from "${before.name}"`);
-        Activity.record({
+        Activity.record({ actor: actorOf(res),
             canteen: canteen._id,
             type: changes.length === 1 && data.available !== undefined && data.available !== before.available ? 'availability' : 'item_updated',
             item: item._id,
@@ -268,7 +275,7 @@ exports.bulkAvailability = async (req, res) => {
     if (foreign.length) return fail(res, 403, 'Some selected items are not on your menu');
     try {
         const result = await MenuItem.updateMany({ _id: { $in: itemIds } }, { $set: { available } });
-        Activity.record({ canteen: canteen._id, type: 'availability', message: `${itemIds.length} item${itemIds.length === 1 ? '' : 's'} marked ${available ? 'available' : 'unavailable'}` });
+        Activity.record({ actor: actorOf(res), canteen: canteen._id, type: 'availability', message: `${itemIds.length} item${itemIds.length === 1 ? '' : 's'} marked ${available ? 'available' : 'unavailable'}` });
         return res.json({ status: 'ok', updated: result.modifiedCount });
     } catch (err) {
         console.error(err);
@@ -285,7 +292,7 @@ exports.archiveMenuItem = async (req, res) => {
     try {
         const item = await MenuItem.findByIdAndUpdate(itemId, { $set: { archived: true, available: false, canteen: canteen._id } }, { new: true });
         await Canteen.updateOne({ _id: canteen._id }, { $pull: { menu: item._id } });
-        Activity.record({ canteen: canteen._id, type: 'item_archived', item: item._id, message: `Removed "${item.name}" from the menu` });
+        Activity.record({ actor: actorOf(res), canteen: canteen._id, type: 'item_archived', item: item._id, message: `Removed "${item.name}" from the menu` });
         return res.json({ status: 'ok' });
     } catch (err) {
         console.error(err);
@@ -326,7 +333,7 @@ exports.createCategory = async (req, res) => {
     if ((canteen.menuCategories || []).length >= 30) return fail(res, 400, 'A canteen can have at most 30 categories');
     canteen.menuCategories.push(name);
     await canteen.save();
-    Activity.record({ canteen: canteen._id, type: 'category', message: `Category "${name}" created` });
+    Activity.record({ actor: actorOf(res), canteen: canteen._id, type: 'category', message: `Category "${name}" created` });
     return res.status(201).json({ status: 'ok', data: await categoryPayload(canteen) });
 };
 
@@ -342,7 +349,7 @@ exports.renameCategory = async (req, res) => {
     canteen.menuCategories.set(index, to);
     await canteen.save();
     await MenuItem.updateMany({ _id: { $in: canteen.menu }, category: from }, { $set: { category: to } });
-    Activity.record({ canteen: canteen._id, type: 'category', message: `Category "${from}" renamed to "${to}"` });
+    Activity.record({ actor: actorOf(res), canteen: canteen._id, type: 'category', message: `Category "${from}" renamed to "${to}"` });
     return res.json({ status: 'ok', data: await categoryPayload(canteen) });
 };
 
@@ -357,7 +364,7 @@ exports.deleteCategory = async (req, res) => {
     canteen.menuCategories = list.filter(c => c !== name);
     await canteen.save();
     const moved = await MenuItem.updateMany({ _id: { $in: canteen.menu }, category: name }, { $set: { category: moveTo } });
-    Activity.record({ canteen: canteen._id, type: 'category', message: `Category "${name}" removed${moved.modifiedCount ? ` — ${moved.modifiedCount} item(s) moved to ${moveTo ? `"${moveTo}"` : 'Uncategorised'}` : ''}` });
+    Activity.record({ actor: actorOf(res), canteen: canteen._id, type: 'category', message: `Category "${name}" removed${moved.modifiedCount ? ` — ${moved.modifiedCount} item(s) moved to ${moveTo ? `"${moveTo}"` : 'Uncategorised'}` : ''}` });
     return res.json({ status: 'ok', data: await categoryPayload(canteen) });
 };
 
@@ -457,7 +464,7 @@ exports.setPayment = async (req, res) => {
     order.paymentStatus = paid ? 'paid' : 'unpaid';
     order.paidAt = paid ? new Date() : undefined;
     await order.save();
-    Activity.record({ canteen: canteen._id, type: 'payment_recorded', order: order._id, message: `${paid ? 'Payment recorded' : 'Payment record removed'} for order #${String(order._id).slice(-6).toUpperCase()} (₹${order.totalPrice})` });
+    Activity.record({ actor: actorOf(res), canteen: canteen._id, type: 'payment_recorded', order: order._id, message: `${paid ? 'Payment recorded' : 'Payment record removed'} for order #${String(order._id).slice(-6).toUpperCase()} (₹${order.totalPrice})` });
     const populated = await populateOrder(Order.findById(order._id));
     return res.json({ status: 'ok', data: shapeOrder(populated) });
 };
@@ -652,4 +659,4 @@ exports.markActivitySeen = async (req, res) => {
     return res.json({ status: 'ok', seenAt: staff.activitySeenAt });
 };
 
-exports._internals = { dayKey, startOfDay, addDays, summarise, orderLines };
+exports._internals = { dayKey, startOfDay, endOfDay, addDays, summarise, orderLines, itemSales, series, shapeOrder, populateOrder, round2, escapeRegex, TZ, DATE, OBJECT_ID, ACTIVE };

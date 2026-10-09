@@ -7,6 +7,8 @@ import { useSession } from './lib/sessionContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Setup from './pages/Setup';
+import SetupPassword from './pages/SetupPassword';
+import { RealtimeProvider } from './lib/realtime';
 import Dashboard from './pages/Dashboard';
 import Orders from './pages/Orders';
 import OrderPage from './pages/OrderPage';
@@ -29,7 +31,7 @@ function FullScreen({ children }) {
 
 // Signed-in staff with a canteen only. Unauthenticated visitors go to /login and come back afterwards.
 function RequireCanteen({ children }) {
-  const { status, canteen, refresh } = useSession();
+  const { status, canteen, refresh, staff } = useSession();
   const location = useLocation();
   if (status === 'loading') return <FullScreen><Spinner className="h-7 w-7 text-brand-600" /><p className="text-muted">Loading your canteen…</p></FullScreen>;
   if (status === 'offline') {
@@ -44,7 +46,12 @@ function RequireCanteen({ children }) {
   }
   if (status === 'signedOut') return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   if (status === 'signedIn' && !canteen) return <Navigate to="/setup" replace />;
-  return children;
+  // Live updates for this account's canteens; if the server ends the socket (access changed), re-check the session.
+  return (
+    <RealtimeProvider enabled={status === 'signedIn'} sessionKey={`${staff?._id}:${(staff?.ownedCanteens || []).map((c) => c._id).join(',')}`} onAccessChanged={refresh}>
+      {children}
+    </RealtimeProvider>
+  );
 }
 
 function PublicOnly({ children }) {
@@ -60,6 +67,7 @@ export default function App() {
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
       <Route path="/setup" element={<Setup />} />
+      <Route path="/setup-password" element={<SetupPassword />} />
       <Route element={<RequireCanteen><AppShell /></RequireCanteen>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />

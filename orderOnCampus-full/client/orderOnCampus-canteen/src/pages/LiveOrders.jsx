@@ -6,6 +6,7 @@ import { PageHeader, PaymentBadge } from '../components/ui/Display';
 import { Banner, EmptyState, ErrorState, Skeleton } from '../components/ui/Feedback';
 import { api, errorMessage } from '../lib/api';
 import { useDocumentTitle, useNow, usePolling } from '../lib/hooks';
+import { useRealtime, useRealtimeStatus } from '../lib/realtimeContext';
 import { formatTime, minutesSince, money } from '../lib/format';
 import { useSession } from '../lib/sessionContext';
 import useOrderActions from '../components/useOrderActions';
@@ -86,7 +87,11 @@ export default function LiveOrders() {
   }, [canteen._id]);
 
   useEffect(() => { load(); }, [load]);
-  usePolling(load, interval);
+  // New orders and status changes arrive over the realtime connection; polling (the staff member's
+  // refresh setting) only runs as a fallback while realtime is unavailable.
+  const { status: rt } = useRealtimeStatus();
+  useRealtime(['order.created', 'order.updated'], load, { debounceMs: 150 });
+  usePolling(load, rt === 'live' ? 60000 : interval);
   const actions = useOrderActions(load);
 
   const grouped = useMemo(() => {

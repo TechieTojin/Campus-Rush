@@ -5,8 +5,14 @@ const canteenSchema = new mongoose.Schema({
     location: { type: String, required: true },
     canteenDescription: String,
     category: { type: String, required: true },
-    // Whether the canteen is accepting orders right now; enforced when an order is placed.
+    // Whether the canteen is accepting orders right now (staff-controlled); enforced when an order is placed.
     openStatus: {type:Boolean,default:true},
+    // Platform status (admin-controlled). Only 'active' canteens are listed to students or take orders.
+    // pending: awaiting admin approval · suspended: hidden from discovery, no new orders, history kept · rejected: application declined
+    status: { type: String, enum: ['pending', 'active', 'suspended', 'rejected'], default: 'active' },
+    statusReason: { type: String, default: '' },
+    statusChangedAt: Date,
+    createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
     menu: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' , required: false}],
     orders: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: false }],
     // Ordered list of menu section names shown to students.

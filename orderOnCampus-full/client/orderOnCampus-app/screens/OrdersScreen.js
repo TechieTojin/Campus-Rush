@@ -9,8 +9,10 @@ import { EmptyState, ErrorState, Skeleton } from '../components/ui/feedback';
 import { PressableScale } from '../components/ui/primitives';
 import { ACTIVE_STATUSES, colors, radius, space, type } from '../constants/theme';
 import { errorMessage, getMyOrders } from '../services/api';
+import { useRealtime, useRealtimeStatus } from '../hooks/useRealtime';
 
-const POLL_MS = 8000;
+// Status changes arrive over the realtime connection; polling is a slow safety net.
+const POLL_MS = 30000;
 
 export default function OrdersScreen() {
   const navigation = useNavigation();
@@ -40,6 +42,9 @@ export default function OrdersScreen() {
     }, [load])
   );
 
+  useRealtime(['order.created', 'order.updated'], () => load(), { debounceMs: 150 });
+  const live = useRealtimeStatus() === 'live';
+
   const onRefresh = async () => {
     setRefreshing(true);
     await load();
@@ -54,7 +59,7 @@ export default function OrdersScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + space.sm }}>
       <View style={{ paddingHorizontal: space.lg }}>
         <Text style={type.h1}>My orders</Text>
-        <Text style={[type.small, { marginBottom: space.md }]}>Status updates automatically while this screen is open</Text>
+        <Text style={[type.small, { marginBottom: space.md }]}>{live ? 'Live — status updates the moment the canteen changes it' : 'Reconnecting… pull down to refresh'}</Text>
         <View style={styles.segment} accessibilityRole="tablist">
           {[
             { key: 'active', label: `Active${orders ? ` (${active.length})` : ''}` },

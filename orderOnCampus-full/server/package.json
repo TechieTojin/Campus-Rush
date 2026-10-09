@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon app"
+    "start": "nodemon app",
+    "migrate": "node scripts/migrate.js",
+    "bootstrap:admin": "node scripts/bootstrap-admin.js",
+    "test": "node --test --test-concurrency=1 tests/platform.test.js"
   },
   "keywords": [],
   "author": "",
@@ -23,5 +26,8 @@
     "openai": "^4.85.1",
     "socket.io": "^4.7.4",
     "stripe": "^14.19.0"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.7.5"
   }
 }

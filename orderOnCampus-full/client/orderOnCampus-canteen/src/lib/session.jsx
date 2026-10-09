@@ -11,6 +11,7 @@ export function SessionProvider({ children }) {
   const [staff, setStaff] = useState(null);
   const [status, setStatus] = useState('loading');
   const [activeId, setActiveId] = useState(readActive);
+  const [expiredReason, setExpiredReason] = useState('');
   const statusRef = useRef(status);
   statusRef.current = status;
 
@@ -23,6 +24,7 @@ export function SessionProvider({ children }) {
     } catch (e) {
       if (e.response?.status === 401) {
         if (statusRef.current === 'signedIn' || statusRef.current === 'expired') {
+          setExpiredReason(e.response.data?.message || '');
           setStatus('expired');
         } else {
           setStaff(null);
@@ -39,7 +41,11 @@ export function SessionProvider({ children }) {
 
   useEffect(() => {
     // Keep the last known staff/canteen so the page underneath the "sign in again" dialog still renders.
-    setSessionExpiredHandler(() => setStatus((s) => (s === 'signedIn' ? 'expired' : s)));
+    setSessionExpiredHandler((message) => {
+      if (statusRef.current !== 'signedIn') return;
+      setExpiredReason(message || '');
+      setStatus('expired');
+    });
   }, []);
 
   const signOut = useCallback(async () => {
@@ -57,9 +63,12 @@ export function SessionProvider({ children }) {
     setStaff((s) => s && { ...s, ownedCanteens: s.ownedCanteens.map((c) => (c._id === patch._id ? { ...c, ...patch } : c)) });
   }, []);
 
+  // Managers control the menu and canteen profile; the 'staff' role handles orders and availability.
+  const isManager = (staff?.role || 'manager') === 'manager';
+
   const value = useMemo(
-    () => ({ staff, status, canteen, canteens, refresh, signOut, setStaff, selectCanteen, updateCanteenSummary }),
-    [staff, status, canteen, canteens, refresh, signOut, selectCanteen, updateCanteenSummary]
+    () => ({ staff, status, expiredReason, isManager, canteen, canteens, refresh, signOut, setStaff, selectCanteen, updateCanteenSummary }),
+    [staff, status, expiredReason, isManager, canteen, canteens, refresh, signOut, selectCanteen, updateCanteenSummary]
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

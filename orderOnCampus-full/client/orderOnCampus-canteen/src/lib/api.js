@@ -5,13 +5,27 @@ export const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5001')
 // Staff auth is an HttpOnly cookie set by the API; nothing is stored in JS-accessible storage.
 const http = axios.create({ baseURL: API_URL, withCredentials: true, timeout: 20000 });
 
+// Mutations echo the readable `staff_csrf` cookie (double-submit CSRF protection).
+const readCookie = (name) => {
+  const match = document.cookie.split('; ').find((c) => c.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : '';
+};
+http.interceptors.request.use((config) => {
+  if (['post', 'put', 'patch', 'delete'].includes((config.method || '').toLowerCase())) {
+    const token = readCookie('staff_csrf');
+    if (token) config.headers['X-CSRF-Token'] = token;
+  }
+  return config;
+});
+
 let onExpired = null;
 export const setSessionExpiredHandler = (fn) => { onExpired = fn; };
 
 http.interceptors.response.use(
   (res) => res,
   (error) => {
-    if (error.response?.status === 401 && !error.config?.skipExpiry && onExpired) onExpired();
+    // Suspension, revoked sessions and expiry all end the session; the server explains which.
+    if (error.response?.status === 401 && !error.config?.skipExpiry && onExpired) onExpired(error.response.data?.message, error.response.data?.code);
     return Promise.reject(error);
   }
 );
@@ -44,6 +58,8 @@ export const api = {
   changePassword: (body) => data(http.put('/staff/me/password', body)),
   updatePreferences: (body) => data(http.put('/staff/me/preferences', body)).then((r) => r.data),
   createCanteen: (body) => data(http.post('/canteens', body)),
+  setupPassword: (token, password) => data(http.post('/staff/setup-password', { token, password }, { skipExpiry: true })),
+  appConfig: () => data(http.get('/app/config')).then((r) => r.data),
 
   // ---- canteen-scoped (server checks ownership on every call)
   canteen: (cid) => data(http.get(`/staff/canteens/${cid}`)).then((r) => r.data),
@@ -74,6 +90,10 @@ export const api = {
   customerOrders: (cid, uid) => data(http.get(`/staff/canteens/${cid}/customers/${uid}/orders`)).then((r) => r.data),
 
   activity: (cid, params) => data(http.get(`/staff/canteens/${cid}/activity`, { params })),
+  announcements: (cid) => data(http.get(`/staff/canteens/${cid}/announcements`)).then((r) => r.data),
+  markAnnouncementRead: (cid, id) => data(http.post(`/staff/canteens/${cid}/announcements/${id}/read`)),
+  supportTickets: (cid) => data(http.get(`/staff/canteens/${cid}/support`)).then((r) => r.data),
+  createSupportTicket: (cid, body) => data(http.post(`/staff/canteens/${cid}/support`, body)).then((r) => r.data),
   markActivitySeen: (cid) => data(http.post(`/staff/canteens/${cid}/activity/seen`)),
 
   uploadImage: (file, onProgress) =>

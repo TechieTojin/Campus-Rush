@@ -7,6 +7,7 @@ import { Card, PageHeader } from '../components/ui/Display';
 import { ErrorState, SkeletonRows } from '../components/ui/Feedback';
 import { api } from '../lib/api';
 import { useAsync, useDocumentTitle, usePolling } from '../lib/hooks';
+import { useRealtime } from '../lib/realtimeContext';
 import { money, orderRef } from '../lib/format';
 import { useSession } from '../lib/sessionContext';
 import useOrderActions from '../components/useOrderActions';
@@ -18,7 +19,8 @@ export default function OrderPage() {
   const { data: order, error, loading, reload } = useAsync(() => api.order(canteen._id, orderId), [canteen._id, orderId]);
   const refresh = useCallback(() => reload({ silent: true }), [reload]);
   const actions = useOrderActions(refresh);
-  usePolling(refresh, 15000, !!order && !['Completed', 'Cancelled'].includes(order.status));
+  usePolling(refresh, 60000, !!order && !['Completed', 'Cancelled'].includes(order.status));
+  useRealtime('order.updated', (e) => { if (e.type === 'resync' || e.orderId === orderId) refresh(); });
 
   return (
     <div className="animate-rise-in max-w-4xl">

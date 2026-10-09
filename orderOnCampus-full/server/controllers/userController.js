@@ -1,23 +1,35 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const io = require('socket.io')
 const User = require('../model/user.model');
 const Order = require('../model/order.model')
 const Canteen = require('../model/canteen.model');
 const Activity = require('../model/activity.model');
+const Setting = require('../model/setting.model');
+const realtime = require('../lib/realtime');
+const { emitOrder } = require('../lib/orders');
 const secretKey = process.env.JWT_SECRET;
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '24h';
 
 // Register user
 exports.registerUser = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const userExist = await User.findOne({ email: email });
+        const { name, email, password } = req.body || {};
+        if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 60) {
+            return res.status(400).json({ message: 'Name must be between 2 and 60 characters' });
+        }
+        if (typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
+            return res.status(400).json({ message: 'Enter a valid email address' });
+        }
+        if (typeof password !== 'string' || !PASSWORD_REGEX.test(password)) {
+            return res.status(400).json({ message: 'Password must be at least 8 characters with a letter and a number' });
+        }
+        const userExist = await User.findOne({ email: email.trim() });
         if (userExist) {
             return res.json("exists");
         }
-        const user = await User.create({ name, email, password: hashedPassword });
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const user = await User.create({ name: name.trim(), email: email.trim(), password: hashedPassword });
+        realtime.emit('student.updated', { userId: String(user._id) }, { admin: true });
         res.status(201).json({ message: 'User created successfully' });
     } catch (error) {
         res.status(400).json({ message: error.message });
@@ -26,21 +38,22 @@ exports.registerUser = async (req, res) => {
 
 // Login user
 exports.loginUser = async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
+    // Strings only: an object such as {"$ne": null} must never reach the query.
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
+        return res.status(400).json({ message: 'Email and password are required' });
+    }
     try {
-        const data = await User.findOne({ email: email });
+        const data = await User.findOne({ email: email.trim() });
         if (data) {
-            bcrypt.compare(password, data.password, (err, result) => {
-                if (err) {
-                    res.status(500).json("An error occurred");
-                }
-                if (result) {
-                    const token = jwt.sign({ _id: data._id }, secretKey, { expiresIn: JWT_EXPIRY });
-                    res.send({ status: "ok", data: token });
-                } else {
-                    res.json("Incorrect password");
-                }
-            });
+            const result = await bcrypt.compare(password, data.password);
+            if (result) {
+                const token = jwt.sign({ _id: data._id, typ: 'student' }, secretKey, { expiresIn: JWT_EXPIRY });
+                User.updateOne({ _id: data._id }, { $set: { lastLoginAt: new Date() } }).catch(() => {});
+                res.send({ status: "ok", data: token });
+            } else {
+                res.json("Incorrect password");
+            }
         } else {
             res.json("No user found");
         }
@@ -158,6 +171,7 @@ exports.updateProfile = async (req, res) => {
             return res.status(409).json({ message: 'That email is already used by another account' });
         }
         const user = await User.findByIdAndUpdate(req.user._id, { name, email }, { new: true }).select('-password');
+        realtime.emit('student.updated', { userId: String(user._id) }, { admin: true });
         return res.status(200).json({ status: 'ok', data: user });
     } catch (error) {
         console.error('Error updating profile:', error);
@@ -200,12 +214,22 @@ exports.placeOrder = async (req, res) => {
         if (typeof canteenId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(canteenId)) {
             return res.status(400).json({ message: 'Invalid canteen' });
         }
-        if (items.length > 100) {
-            return res.status(400).json({ message: 'Too many items in one order' });
+        // Platform rules set by admins (settings are validated when saved).
+        const settings = await Setting.get();
+        if (settings.maintenance?.enabled) {
+            return res.status(503).json({ message: settings.maintenance.message || 'Campus Rush is under maintenance. Ordering will be back shortly.', code: 'MAINTENANCE' });
+        }
+        const maxItems = settings.ordering?.maxItemsPerOrder || 20;
+        const maxQty = settings.ordering?.maxQuantityPerItem || 10;
+        if (items.length > maxItems) {
+            return res.status(400).json({ message: `An order can have at most ${maxItems} items` });
         }
         const canteen = await Canteen.findById(canteenId).populate('menu');
-        if (!canteen) {
+        if (!canteen || canteen.status === 'pending' || canteen.status === 'rejected') {
             return res.status(404).json({ message: 'Canteen not found' });
+        }
+        if (canteen.status === 'suspended') {
+            return res.status(400).json({ message: `${canteen.name} is temporarily unavailable on Campus Rush`, code: 'CANTEEN_SUSPENDED' });
         }
         if (canteen.openStatus === false) {
             return res.status(400).json({ message: `${canteen.name} isn't taking orders right now` });
@@ -222,6 +246,9 @@ exports.placeOrder = async (req, res) => {
                 return res.status(400).json({ message: `Invalid item ID: ${itemId}` });
             }
             itemCounts[itemId] = (itemCounts[itemId] || 0) + 1;
+            if (itemCounts[itemId] > maxQty) {
+                return res.status(400).json({ message: `You can order at most ${maxQty} of the same item` });
+            }
         }
 
         for (const [itemId, qty] of Object.entries(itemCounts)) {
@@ -260,6 +287,7 @@ exports.placeOrder = async (req, res) => {
             actor: 'student',
             message: `New order #${String(savedOrder._id).slice(-6).toUpperCase()} — ${lineItems.map(l => `${l.quantity}× ${l.name}`).join(', ')} (₹${savedOrder.totalPrice})`
         });
+        emitOrder('order.created', savedOrder);
         res.status(201).json(savedOrder);
     } catch (error) {
         console.error("Error creating order:", error);

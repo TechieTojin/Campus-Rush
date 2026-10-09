@@ -5,7 +5,13 @@ const Staff = require('../model/staff.model')
 const MenuItem = require('../model/menuItem.model')
 const Order = require('../model/order.model');
 const Activity = require('../model/activity.model');
+const Setting = require('../model/setting.model');
+const { ALLOWED_TRANSITIONS, STATUSES, transitionOrder } = require('../lib/orders');
+const realtime = require('../lib/realtime');
+const { issueCsrf } = require('../middleware/auth');
 const secretKey = process.env.JWT_SECRET;
+const SESSION_MS = 24 * 60 * 60 * 1000;
+const STAFF_CSRF = 'staff_csrf';
 const isProduction = process.env.NODE_ENV === 'production';
 const cookieOptions = {
     httpOnly: true,
@@ -20,16 +26,31 @@ const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,72}$/;
 const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
 const safeStaff = async (staff) => {
-    await staff.populate({ path: 'ownedCanteens', select: 'name location openStatus logo category' });
+    await staff.populate({ path: 'ownedCanteens', select: 'name location openStatus logo category status statusReason' });
     const data = staff.toObject();
     delete data.password;
+    delete data.tokenVersion;
+    delete data.setupTokenHash;
+    delete data.setupTokenExpires;
+    data.role = data.role || 'manager';
     return data;
 };
 
+// Session token carries the account's token version so it can be revoked server-side.
+const startSession = (res, staff) => {
+    const token = jwt.sign({ _id: staff._id, typ: 'staff', tv: staff.tokenVersion || 0 }, secretKey, { expiresIn: '24h' });
+    res.cookie("token", token, cookieOptions);
+    issueCsrf(res, STAFF_CSRF, SESSION_MS);
+};
+
+const emailQuery = (email) => ({ email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
+
 // Staff sign-up creates an account that owns nothing; it can only gain a canteen by creating a new one.
-// Set STAFF_SIGNUP_CODE to require an invite code. Without one, sign-up is open in development
-// and disabled in production.
-const signupGate = (code) => {
+// Admins can turn self sign-up off (platform settings). STAFF_SIGNUP_CODE additionally requires an
+// invite code. Without either, sign-up is open in development and disabled in production.
+const signupGate = async (code) => {
+    const settings = await Setting.get();
+    if (!settings.onboarding?.staffSignupEnabled) return 'New canteen sign-ups are closed. Ask a Campus Rush administrator for an account.';
     const required = process.env.STAFF_SIGNUP_CODE;
     if (required) {
         const a = Buffer.from(String(code || ''));
@@ -46,7 +67,7 @@ exports.registerStaff = async (req, res) => {
         const email = str(req.body.email, 120).toLowerCase();
         const { password, signupCode } = req.body;
 
-        const gate = signupGate(signupCode);
+        const gate = await signupGate(signupCode);
         if (gate) return res.status(403).json({ message: gate });
         if (name.length < 2) return res.status(400).json({ message: 'Enter your name (at least 2 characters)' });
         if (!EMAIL_REGEX.test(email)) return res.status(400).json({ message: 'Enter a valid email address' });
@@ -54,15 +75,15 @@ exports.registerStaff = async (req, res) => {
             return res.status(400).json({ message: 'Password must be at least 8 characters with a letter and a number' });
         }
 
-        const existingStaff = await Staff.findOne({ email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
+        const existingStaff = await Staff.findOne(emailQuery(email));
         if (existingStaff) {
             return res.status(409).json({ message: 'An account with this email already exists. Sign in instead.' });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const staff = await Staff.create({ username: name, email, password: hashedPassword });
-        const token = jwt.sign({ _id: staff._id }, secretKey, { expiresIn: '24h' });
-        res.cookie("token", token, cookieOptions);
+        const staff = await Staff.create({ username: name, email, password: hashedPassword, role: 'manager', status: 'active' });
+        startSession(res, staff);
+        realtime.emit('staff.updated', { staffId: String(staff._id) }, { admin: true });
         res.status(201).json({ message: 'Staff member created successfully' });
     } catch (error) {
         console.error('Staff registration failed:', error);
@@ -80,13 +101,19 @@ exports.loginStaff = async (req, res) => {
         return res.status(400).json({ message: 'Email and password are required' });
     }
     try {
-        const user = await Staff.findOne({ email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
-        const ok = user ? await bcrypt.compare(password, user.password) : false;
+        const user = await Staff.findOne(emailQuery(email));
+        const ok = user && user.password ? await bcrypt.compare(password, user.password) : false;
         if (!ok) {
             return res.status(401).json({ message: 'Incorrect email or password' });
         }
-        const token = jwt.sign({ _id: user._id }, secretKey, { expiresIn: '24h' });
-        res.cookie("token", token, cookieOptions);
+        // Only reported after the password matched, so it doesn't reveal which accounts exist.
+        if (user.status === 'suspended') {
+            return res.status(403).json({ message: 'This staff account has been suspended. Contact your Campus Rush administrator.', code: 'SUSPENDED' });
+        }
+        user.lastLoginAt = new Date();
+        if (user.status === 'invited') user.status = 'active';
+        await user.save();
+        startSession(res, user);
         res.json({ status: 'ok', message: 'Success' });
     } catch (error) {
         console.error(error);
@@ -96,13 +123,39 @@ exports.loginStaff = async (req, res) => {
 
 //authentication
 exports.authStaff = async (req, res) => {
+    // Sessions created before CSRF tokens existed get one here.
+    if (!req.cookies[STAFF_CSRF]) issueCsrf(res, STAFF_CSRF, SESSION_MS);
     res.send({ status: "ok", data: await safeStaff(res.locals.user) });
 }
 
 exports.logout = async (req, res) => {
     res.clearCookie('token', { httpOnly: true, secure: isProduction, sameSite: 'lax', path: '/' });
+    res.clearCookie(STAFF_CSRF, { secure: isProduction, sameSite: 'strict', path: '/' });
     res.json({ status: 'ok', message: 'Signed out' });
 }
+
+// Completes an admin-created account: the one-time token from the setup link sets the first password.
+exports.setupPassword = async (req, res) => {
+    const { token, password } = req.body || {};
+    if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) return res.status(400).json({ message: 'This setup link is invalid.' });
+    if (typeof password !== 'string' || !PASSWORD_REGEX.test(password)) {
+        return res.status(400).json({ message: 'Password must be at least 8 characters with a letter and a number' });
+    }
+    const hash = crypto.createHash('sha256').update(token).digest('hex');
+    const staff = await Staff.findOne({ setupTokenHash: hash, setupTokenExpires: { $gt: new Date() } }).select('+setupTokenHash +setupTokenExpires');
+    if (!staff) return res.status(400).json({ message: 'This setup link is invalid or has expired. Ask your administrator for a new one.' });
+    if (staff.status === 'suspended') return res.status(403).json({ message: 'This staff account has been suspended.' });
+    staff.password = await bcrypt.hash(password, 10);
+    staff.setupTokenHash = undefined;
+    staff.setupTokenExpires = undefined;
+    staff.status = 'active';
+    staff.tokenVersion = (staff.tokenVersion || 0) + 1;
+    staff.lastLoginAt = new Date();
+    await staff.save();
+    startSession(res, staff);
+    realtime.emit('staff.updated', { staffId: String(staff._id) }, { admin: true });
+    res.json({ status: 'ok', message: 'Password set' });
+};
 
 exports.updateAccount = async (req, res) => {
     const staff = res.locals.user;
@@ -144,7 +197,11 @@ exports.changePassword = async (req, res) => {
         return res.status(400).json({ message: 'New password must be different from the current one' });
     }
     staff.password = await bcrypt.hash(newPassword, 10);
+    // Sign out every other session; this browser gets a fresh one.
+    staff.tokenVersion = (staff.tokenVersion || 0) + 1;
     await staff.save();
+    realtime.disconnect(`staff:${staff._id}`);
+    startSession(res, staff);
     res.json({ status: 'ok', message: 'Password updated' });
 };
 
@@ -166,13 +223,6 @@ exports.getCanteenOrders = async (req, res) => {
     }
 };
 
-const ALLOWED_TRANSITIONS = {
-    'Placed': ['Processing', 'Cancelled'],
-    'Processing': ['Ready', 'Completed'],
-    'Ready': ['Completed'],
-    'Completed': [],
-    'Cancelled': []
-};
 exports.ALLOWED_TRANSITIONS = ALLOWED_TRANSITIONS;
 
 exports.updateOrderStatus = async (req, res) => {
@@ -181,9 +231,8 @@ exports.updateOrderStatus = async (req, res) => {
         const newStatus = req.body.status;
         const staff = res.locals.user;
 
-        const validStatuses = ['Placed', 'Processing', 'Completed', 'Cancelled', 'Ready'];
-        if (!newStatus || !validStatuses.includes(newStatus)) {
-            return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+        if (!newStatus || !STATUSES.includes(newStatus)) {
+            return res.status(400).json({ message: `Invalid status. Must be one of: ${STATUSES.join(', ')}` });
         }
         if (!/^[0-9a-fA-F]{24}$/.test(orderId)) {
             return res.status(404).json({ message: "Order not found" });
@@ -199,31 +248,9 @@ exports.updateOrderStatus = async (req, res) => {
             return res.status(403).json({ message: "Not authorized to update this order" });
         }
 
-        const allowed = ALLOWED_TRANSITIONS[order.status] || [];
-        if (!allowed.includes(newStatus)) {
-            return res.status(400).json({
-                message: `Cannot transition from '${order.status}' to '${newStatus}'. Allowed: ${allowed.length ? allowed.join(', ') : 'none (terminal status)'}`
-            });
-        }
-
-        // Conditional on the status we validated against, so two people updating the same order
-        // at once can't both succeed with a transition that is no longer valid.
-        const updated = await Order.findOneAndUpdate(
-            { _id: order._id, status: order.status },
-            { $set: { status: newStatus }, $push: { statusHistory: { status: newStatus, at: new Date() } } },
-            { new: true, runValidators: true }
-        );
-        if (!updated) {
-            return res.status(409).json({ message: 'This order was just updated by someone else. Refresh to see its current status.' });
-        }
-
-        Activity.record({
-            canteen: order.canteen,
-            type: 'order_status',
-            order: order._id,
-            message: `Order #${String(order._id).slice(-6).toUpperCase()} moved from ${order.status} to ${newStatus}`,
-        });
-        res.json(updated);
+        const result = await transitionOrder(order, newStatus, { actor: 'staff' });
+        if (!result.order) return res.status(result.status).json({ message: result.message });
+        res.json(result.order);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Internal server error" });

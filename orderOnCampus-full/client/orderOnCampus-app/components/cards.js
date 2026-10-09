@@ -6,6 +6,7 @@ import { useSelector } from 'react-redux';
 import { colors, radius, shadow, space, type } from '../constants/theme';
 import useCart from '../hooks/useCart';
 import { useFavorite } from '../hooks/useSession';
+import { useAppConfig } from '../hooks/useAppConfig';
 import { selectCartCanteen, selectCartCount, selectCartTotal, selectItemQuantity } from '../slices/CartSlice';
 import { formatDate, formatPrice, orderRef, summarizeOrder } from '../utils/format';
 import { CanteenCover, FoodArt, QuantityStepper } from './ui/food';
@@ -51,7 +52,8 @@ export function CanteenCard({ canteen, compact }) {
   const { isFavorite, toggle, busy } = useFavorite(canteen._id);
   const itemCount = canteen.menu?.length || 0;
   const available = canteen.menu?.filter(m => m?.available).length || 0;
-  const open = canteen.openStatus !== false;
+  const open = canteen.openStatus !== false && canteen.status !== 'suspended';
+  const favoritesOn = useAppConfig().studentApp?.enableFavorites !== false;
   return (
     <PressableScale
       onPress={() => navigation.navigate('Canteen', { canteenId: canteen._id, canteen })}
@@ -62,13 +64,13 @@ export function CanteenCard({ canteen, compact }) {
       <CanteenCover canteen={canteen} height={compact ? 110 : 132} rounded={radius.lg}>
         <View style={styles.coverTop}>
           <Tag label={open ? 'Open now' : 'Closed'} tone={open ? 'success' : 'danger'} icon={open ? 'clock' : 'x-circle'} />
-          <IconButton
+          {favoritesOn ? <IconButton
             icon={<Feather name="heart" size={18} color={isFavorite ? colors.heart : colors.ink} />}
             tone="glass"
             size={36}
             onPress={() => !busy && toggle(canteen.name)}
             accessibilityLabel={isFavorite ? `Remove ${canteen.name} from favorites` : `Save ${canteen.name} to favorites`}
-          />
+          /> : <View />}
         </View>
       </CanteenCover>
       <View style={{ padding: space.md }}>
@@ -92,7 +94,7 @@ export function PopularDishCard({ item, canteen, ordered }) {
   const navigation = useNavigation();
   return (
     <PressableScale
-      onPress={() => navigation.navigate('FoodDetail', { item, canteen, closed: canteen.openStatus === false })}
+      onPress={() => navigation.navigate('FoodDetail', { item, canteen, closed: canteen.openStatus === false || canteen.status === 'suspended' })}
       scaleTo={0.97}
       accessibilityLabel={`${item.name} from ${canteen.name}, ${formatPrice(item.price)}`}
       style={styles.popular}

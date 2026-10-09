@@ -1,6 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import React from 'react';
+import React, { useEffect } from 'react';
+import { refreshUser } from '../hooks/useSession';
+import { useRealtime } from '../hooks/useRealtime';
+import { connectRealtime, disconnectRealtime } from '../services/realtime';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
@@ -60,6 +63,13 @@ function TabBar({ state, navigation }) {
 }
 
 export default function TabNavigation() {
+  // Realtime connection lives as long as the signed-in area (signing out resets to Login and unmounts this).
+  useEffect(() => {
+    connectRealtime();
+    return () => disconnectRealtime();
+  }, []);
+  // Suspension or reactivation by an admin: reload the account so banners and checkout reflect it.
+  useRealtime('account.updated', () => { refreshUser().catch(() => {}); });
   return (
     <Tab.Navigator tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tab.Screen name="Home" component={HomeScreen} />

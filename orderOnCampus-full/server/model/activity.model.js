@@ -6,12 +6,12 @@ const activitySchema = new mongoose.Schema({
     type: {
         type: String,
         required: true,
-        enum: ['order_placed', 'order_status', 'payment_recorded', 'item_created', 'item_updated', 'item_archived', 'availability', 'canteen_updated', 'category'],
+        enum: ['order_placed', 'order_status', 'payment_recorded', 'item_created', 'item_updated', 'item_archived', 'availability', 'canteen_updated', 'category', 'admin_action', 'announcement'],
     },
     message: { type: String, required: true },
     order: { type: mongoose.Schema.Types.ObjectId, ref: 'Order' },
     item: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
-    actor: { type: String, enum: ['student', 'staff'], default: 'staff' },
+    actor: { type: String, enum: ['student', 'staff', 'admin'], default: 'staff' },
     createdAt: { type: Date, default: Date.now, index: true },
 });
 

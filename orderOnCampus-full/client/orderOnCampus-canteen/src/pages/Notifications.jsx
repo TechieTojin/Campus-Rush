@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiAlertCircle, FiBell, FiBookOpen, FiCheck, FiCheckCircle, FiCreditCard, FiEdit3, FiLayers, FiPackage, FiRefreshCw, FiToggleRight, FiTrash2 } from 'react-icons/fi';
+import { FiRadio, FiAlertCircle, FiBell, FiBookOpen, FiCheck, FiCheckCircle, FiCreditCard, FiEdit3, FiLayers, FiPackage, FiRefreshCw, FiToggleRight, FiTrash2 } from 'react-icons/fi';
 
 import { OrderDrawer } from '../components/orders';
 import Button from '../components/ui/Button';
@@ -9,6 +9,7 @@ import { Banner, EmptyState, ErrorState, SkeletonRows } from '../components/ui/F
 import { Segmented } from '../components/ui/Form';
 import { api, errorMessage } from '../lib/api';
 import { useAsync, useDocumentTitle, usePolling } from '../lib/hooks';
+import { useRealtime } from '../lib/realtimeContext';
 import { formatDateTime, relativeTime } from '../lib/format';
 import { useSession } from '../lib/sessionContext';
 import { useToast } from '../components/ui/useToast';
@@ -26,6 +27,37 @@ const ICONS = {
   category: { icon: FiLayers, color: 'bg-sunken text-body' },
 };
 
+// Announcements from Campus Rush admins (in-app only), with per-staff read state.
+function AnnouncementsPanel() {
+  const { canteen } = useSession();
+  const { refreshCounts } = useShell();
+  const { data, reload } = useAsync(() => api.announcements(canteen._id), [canteen._id]);
+  useRealtime('announcement.updated', () => reload({ silent: true }));
+  if (!data?.length) return null;
+  const markRead = async (id) => {
+    try { await api.markAnnouncementRead(canteen._id, id); } catch { /* best effort */ }
+    reload({ silent: true });
+    refreshCounts();
+  };
+  return (
+    <Card className="mb-6 overflow-hidden">
+      <div className="px-5 pt-4 pb-2 flex items-center gap-2"><FiRadio className="h-4 w-4 text-brand-600" aria-hidden /><h2 className="font-bold">From Campus Rush</h2></div>
+      <ul className="divide-y divide-divider">
+        {data.map((a) => (
+          <li key={a._id} className={`px-5 py-3.5 flex items-start gap-3 ${a.read ? '' : 'bg-brand-50/40'}`}>
+            <div className="flex-1 min-w-0">
+              <p className={`${a.read ? 'text-body' : 'font-semibold text-ink'}`}>{a.title}{a.targeted ? <span className="ml-2 text-[11.5px] font-semibold text-brand-700">For your canteen</span> : null}</p>
+              <p className="text-[13.5px] text-body whitespace-pre-line mt-0.5">{a.body}</p>
+              <p className="text-[12.5px] text-muted mt-1">{relativeTime(a.createdAt)}</p>
+            </div>
+            {!a.read ? <Button size="sm" variant="secondary" onClick={() => markRead(a._id)}>Mark read</Button> : <span className="text-[12px] text-faint">Read</span>}
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 export default function Notifications() {
   useDocumentTitle('Notifications');
   const { canteen } = useSession();
@@ -35,7 +67,8 @@ export default function Notifications() {
   const [marking, setMarking] = useState(false);
   const [openOrder, setOpenOrder] = useState(null);
   const { data, error, loading, reload } = useAsync(() => api.activity(canteen._id, { limit: 80, type: type === 'all' ? undefined : type }), [canteen._id, type]);
-  usePolling(() => reload({ silent: true }), 20000);
+  usePolling(() => reload({ silent: true }), 60000);
+  useRealtime(['order.created', 'order.updated', 'menu.updated', 'canteen.updated'], () => reload({ silent: true }), { debounceMs: 500 });
 
   const markRead = async () => {
     setMarking(true);
@@ -63,6 +96,7 @@ export default function Notifications() {
           </>
         }
       />
+      <AnnouncementsPanel />
       {data?.waiting ? (
         <Banner tone="warning" className="mb-4" title={`${data.waiting} order${data.waiting === 1 ? ' is' : 's are'} waiting to be accepted`} action={<Button size="sm" to="/live">Open live board</Button>}>
           Students are waiting for you to start preparing.

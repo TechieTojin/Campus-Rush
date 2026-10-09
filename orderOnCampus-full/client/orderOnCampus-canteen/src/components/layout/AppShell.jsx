@@ -7,6 +7,7 @@ import {
 import { api, errorMessage } from '../../lib/api';
 import { usePolling, useOnline } from '../../lib/hooks';
 import { useSession } from '../../lib/sessionContext';
+import { useRealtime, useRealtimeStatus } from '../../lib/realtimeContext';
 import Button from '../ui/Button';
 import { Avatar, Thumb } from '../ui/Display';
 import { useToast } from '../ui/useToast';
@@ -22,8 +23,8 @@ const NAV = [
   ] },
   { group: 'Menu', items: [
     { to: '/menu', label: 'Menu', icon: FiBookOpen, end: true },
-    { to: '/menu/new', label: 'Add menu item', icon: FiPlusCircle },
-    { to: '/categories', label: 'Categories', icon: FiLayers },
+    { to: '/menu/new', label: 'Add menu item', icon: FiPlusCircle, manager: true },
+    { to: '/categories', label: 'Categories', icon: FiLayers, manager: true },
     { to: '/availability', label: 'Availability', icon: FiToggleRight },
   ] },
   { group: 'Business', items: [
@@ -60,7 +61,7 @@ function chime() {
 }
 
 function Sidebar({ counts, onNavigate }) {
-  const { canteen } = useSession();
+  const { canteen, isManager } = useSession();
   return (
     <div className="flex flex-col h-full">
       <Link to="/dashboard" onClick={onNavigate} className="flex items-center gap-2.5 px-5 h-16 shrink-0">
@@ -87,7 +88,7 @@ function Sidebar({ counts, onNavigate }) {
           <div key={g.group} className="mt-3 first:mt-0">
             <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-brand-200/60">{g.group}</p>
             <ul className="space-y-0.5">
-              {g.items.map((item) => {
+              {g.items.filter((item) => isManager || !item.manager).map((item) => {
                 const count = item.badge ? counts[item.badge] : 0;
                 return (
                   <li key={item.to}>
@@ -117,11 +118,20 @@ function Sidebar({ counts, onNavigate }) {
 }
 
 function OpenStatusSwitch() {
-  const { canteen, updateCanteenSummary } = useSession();
+  const { canteen, updateCanteenSummary, isManager } = useSession();
   const toast = useToast();
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   if (!canteen) return null;
+  // Only managers of an active (approved, not suspended) canteen can switch ordering.
+  if (!isManager || (canteen.status && canteen.status !== 'active')) {
+    return (
+      <span className={`hidden sm:inline-flex items-center gap-2 h-9 px-3 rounded-full border text-[13px] font-semibold ${canteen.openStatus && canteen.status === 'active' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-line bg-sunken text-muted'}`}>
+        <span className={`h-2 w-2 rounded-full ${canteen.openStatus && canteen.status === 'active' ? 'bg-emerald-500' : 'bg-faint'}`} />
+        {canteen.status === 'suspended' ? 'Suspended' : canteen.status === 'pending' ? 'Awaiting approval' : canteen.openStatus ? 'Open for orders' : 'Ordering paused'}
+      </span>
+    );
+  }
   const set = async (open) => {
     setBusy(true);
     try {
@@ -197,10 +207,38 @@ function UserMenu() {
   );
 }
 
+function RealtimePill() {
+  const { status } = useRealtimeStatus();
+  const meta = { live: ['Live', 'bg-emerald-500 animate-pulse2', 'text-emerald-700'], connecting: ['Connecting', 'bg-saffron-500', 'text-saffron-700'], offline: ['Reconnecting', 'bg-red-500', 'text-red-700'], off: ['Off', 'bg-faint', 'text-muted'] }[status];
+  return (
+    <span className={`hidden xl:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full border border-line text-[12px] font-semibold ${meta[2]}`} role="status" title="Realtime updates">
+      <span className={`h-2 w-2 rounded-full ${meta[1]}`} aria-hidden />{meta[0]}
+    </span>
+  );
+}
+
+// Admin decisions about this canteen, shown on every page.
+function CanteenStatusBanner() {
+  const { canteen } = useSession();
+  if (!canteen?.status || canteen.status === 'active') return null;
+  const text = {
+    pending: ['Waiting for Campus Rush approval', 'Students can’t see your canteen yet. You can set up your menu in the meantime.'],
+    suspended: ['Your canteen has been suspended by Campus Rush', 'Students can’t find your canteen or place new orders. Please complete any orders already in progress.'],
+    rejected: ['Your canteen application was not approved', 'Contact Campus Rush support from the Help page if you think this is a mistake.'],
+  }[canteen.status];
+  return (
+    <div className={`px-4 sm:px-6 lg:px-8 py-3 border-b ${canteen.status === 'pending' ? 'bg-saffron-50 border-saffron-200 text-saffron-700' : 'bg-red-50 border-red-200 text-red-800'}`} role="status">
+      <p className="font-semibold">{text[0]}</p>
+      <p className="text-[13px] opacity-90">{canteen.statusReason ? `Reason: ${canteen.statusReason}. ` : ''}{text[1]}</p>
+    </div>
+  );
+}
+
 export default function AppShell() {
-  const { canteen, staff, status } = useSession();
+  const { canteen, staff, status, refresh } = useSession();
   const [mobileNav, setMobileNav] = useState(false);
   const [counts, setCounts] = useState({ unread: 0, waiting: 0 });
+  const [announcement, setAnnouncement] = useState(null);
   const lastSeenOrder = useRef(null);
   const toast = useToast();
   const location = useLocation();
@@ -213,8 +251,10 @@ export default function AppShell() {
   const refreshCounts = useCallback(async () => {
     if (!cid) return;
     try {
-      const res = await api.activity(cid, { limit: 1, type: 'placed' });
-      setCounts({ unread: res.unread, waiting: res.waiting });
+      const [res, notes] = await Promise.all([api.activity(cid, { limit: 1, type: 'placed' }), api.announcements(cid).catch(() => [])]);
+      const unreadNotes = notes.filter((n) => !n.read);
+      setCounts({ unread: res.unread + unreadNotes.length, waiting: res.waiting });
+      setAnnouncement(unreadNotes[0] || null);
       const latestId = res.data[0]?._id || '';
       if (lastSeenOrder.current !== null && latestId && latestId !== lastSeenOrder.current) {
         toast.info(res.data[0].message, { title: 'New order received', duration: 8000 });
@@ -225,7 +265,12 @@ export default function AppShell() {
   }, [cid, staff?.preferences?.soundOnNewOrder, toast]);
 
   useEffect(() => { lastSeenOrder.current = null; refreshCounts(); }, [refreshCounts]);
-  usePolling(refreshCounts, 15000, !!cid && status === 'signedIn');
+  // Realtime events drive badges and new-order alerts; polling is a slower safety net.
+  const { status: rt } = useRealtimeStatus();
+  useRealtime(['order.created', 'order.updated', 'announcement.updated', 'support.updated'], refreshCounts, { debounceMs: 250 });
+  // Admin changes to this canteen (status, profile) or this account (role, assignments) refresh the session.
+  useRealtime(['canteen.updated', 'staff.updated', 'config.updated'], useCallback(() => { refresh(); }, [refresh]), { debounceMs: 400 });
+  usePolling(refreshCounts, rt === 'live' ? 60000 : 15000, !!cid && status === 'signedIn');
 
   return (
     <ShellContext.Provider value={{ counts, refreshCounts }}>
@@ -251,6 +296,7 @@ export default function AppShell() {
           <div className="flex-1 min-w-0">
             <p className="lg:hidden font-bold text-ink truncate">{canteen?.name}</p>
           </div>
+          <RealtimePill />
           <OpenStatusSwitch />
           <Button variant="soft" size="sm" to="/live" icon={FiShoppingBag} className="hidden md:inline-flex">
             Live orders{counts.waiting ? ` · ${counts.waiting} new` : ''}
@@ -265,6 +311,14 @@ export default function AppShell() {
         {!online ? (
           <div className="bg-ink text-white text-[13px] px-6 py-2 flex items-center gap-2" role="status"><FiWifiOff className="h-4 w-4" aria-hidden />You’re offline. Changes can’t be saved until the connection is back.</div>
         ) : null}
+        <CanteenStatusBanner />
+        {announcement ? (
+          <div className={`px-4 sm:px-6 lg:px-8 py-3 border-b flex items-start gap-3 ${announcement.tone === 'critical' ? 'bg-red-50 border-red-200 text-red-800' : announcement.tone === 'warning' ? 'bg-saffron-50 border-saffron-200 text-saffron-700' : 'bg-brand-50 border-brand-200 text-brand-800'}`} role="status" data-announcement>
+            <FiBell className="h-4 w-4 mt-1 shrink-0" aria-hidden />
+            <div className="flex-1 min-w-0"><p className="font-semibold">Campus Rush: {announcement.title}</p><p className="text-[13px] opacity-90 line-clamp-2">{announcement.body}</p></div>
+            <button type="button" className="text-[13px] font-semibold underline shrink-0" onClick={async () => { try { await api.markAnnouncementRead(cid, announcement._id); } catch { /* best effort */ } refreshCounts(); }}>Mark as read</button>
+          </div>
+        ) : null}
 
         <main id="main" tabIndex={-1} className="px-4 sm:px-6 lg:px-8 py-6 lg:py-8 max-w-[1440px] mx-auto outline-none">
           <Outlet />
@@ -276,18 +330,18 @@ export default function AppShell() {
 }
 
 function SessionExpiredDialog() {
-  const { status } = useSession();
+  const { status, expiredReason } = useSession();
   const navigate = useNavigate();
   const location = useLocation();
   return (
     <Dialog
       open={status === 'expired'}
       onClose={() => navigate('/login', { replace: true, state: { from: location.pathname } })}
-      title="Your session has expired"
+      title="Your session has ended"
       size="sm"
       footer={<Button onClick={() => navigate('/login', { replace: true, state: { from: location.pathname } })} data-autofocus>Sign in again</Button>}
     >
-      <p className="text-body">For security, staff sessions end after 24 hours. Sign in again to continue — unsaved changes on this page may be lost.</p>
+      <p className="text-body">{expiredReason || 'For security, staff sessions end after 24 hours.'} Sign in again to continue — unsaved changes on this page may be lost.</p>
     </Dialog>
   );
 }

@@ -13,6 +13,8 @@ import { colors, radius, shadow, space, type } from '../constants/theme';
 import { useFavorite } from '../hooks/useSession';
 import { errorMessage, getCanteen } from '../services/api';
 import { selectCartCount } from '../slices/CartSlice';
+import { useAppConfig } from '../hooks/useAppConfig';
+import { useRealtime } from '../hooks/useRealtime';
 import { openingHours } from '../utils/format';
 
 export default function CanteenScreen() {
@@ -40,6 +42,10 @@ export default function CanteenScreen() {
   }, [canteenId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  // This canteen's menu or profile changed (staff or admin): refetch from the server.
+  useRealtime(['menu.updated', 'canteen.updated'], (e) => { if (e.type === 'resync' || e.canteenId === canteenId) load(); });
+  const config = useAppConfig();
+  const favoritesOn = config.studentApp?.enableFavorites !== false;
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -73,7 +79,9 @@ export default function CanteenScreen() {
     return rows;
   }, [canteen, query, onlyAvailable, section, sections]);
 
-  const closed = canteen?.openStatus === false;
+  // Suspended by Campus Rush, or paused by the canteen: browsable, not orderable (the server enforces both).
+  const suspended = canteen?.status === 'suspended';
+  const closed = canteen?.openStatus === false || suspended || !!config.maintenance?.enabled;
   const total = canteen?.menu?.length || 0;
   const availableCount = canteen?.menu?.filter(m => m?.available).length || 0;
 
@@ -84,12 +92,12 @@ export default function CanteenScreen() {
           <IconButton icon="arrow-left" tone="glass" onPress={() => navigation.goBack()} accessibilityLabel="Go back" />
           <View style={{ flexDirection: 'row' }}>
             <IconButton icon="search" tone="glass" onPress={() => navigation.navigate('Search')} accessibilityLabel="Search all canteens" style={{ marginRight: space.xs }} />
-            <IconButton
+            {favoritesOn ? <IconButton
               icon={<Feather name="heart" size={20} color={isFavorite ? colors.heart : colors.ink} />}
               tone="glass"
               onPress={() => !busy && toggle(canteen.name)}
               accessibilityLabel={isFavorite ? 'Remove from favorites' : 'Save to favorites'}
-            />
+            /> : null}
           </View>
         </View>
       </CanteenCover>
@@ -123,7 +131,9 @@ export default function CanteenScreen() {
         </View>
       </View>
       <View style={{ paddingHorizontal: space.lg }}>
-        {closed ? <Banner tone="warning" message="This canteen isn't taking orders right now. You can still browse the menu." style={{ marginBottom: space.md }} /> : null}
+        {suspended ? <Banner tone="danger" message="This canteen is temporarily unavailable on Campus Rush. You can browse the menu, but ordering is off." style={{ marginBottom: space.md }} />
+          : config.maintenance?.enabled ? <Banner tone="warning" message={config.maintenance.message || 'Ordering is paused for maintenance.'} style={{ marginBottom: space.md }} />
+          : closed ? <Banner tone="warning" message="This canteen isn't taking orders right now. You can still browse the menu." style={{ marginBottom: space.md }} /> : null}
         <Text style={[type.h2, { marginBottom: space.sm }]}>Menu</Text>
         {total > 0 ? (
           <>

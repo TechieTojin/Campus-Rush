@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,7 +15,9 @@ import { formatPrice } from '../utils/format';
 export default function SearchScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const [query, setQuery] = useState('');
+  const { params } = useRoute();
+  // Banners can open search with a preset query (validated text only, set by admins).
+  const [query, setQuery] = useState(typeof params?.query === 'string' ? params.query.slice(0, 40) : '');
   const [canteens, setCanteens] = useState(null);
   const [error, setError] = useState('');
 

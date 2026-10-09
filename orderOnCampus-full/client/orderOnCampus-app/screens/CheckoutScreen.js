@@ -1,6 +1,6 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
@@ -8,7 +8,9 @@ import { Banner } from '../components/ui/feedback';
 import { ScreenHeader } from '../components/ui/food';
 import { Button, Card, Tag } from '../components/ui/primitives';
 import { colors, radius, shadow, space, type } from '../constants/theme';
-import { refreshUser } from '../hooks/useSession';
+import { refreshUser, useUser } from '../hooks/useSession';
+import { useAppConfig } from '../hooks/useAppConfig';
+import { useRealtime } from '../hooks/useRealtime';
 import { errorMessage, getCanteen, placeOrder } from '../services/api';
 import { emptyCart, selectCartCanteen, selectCartCount, selectCartItems, selectCartTotal } from '../slices/CartSlice';
 import { formatPrice } from '../utils/format';
@@ -26,10 +28,15 @@ export default function CheckoutScreen() {
   const [error, setError] = useState('');
   const [liveCanteen, setLiveCanteen] = useState(null);
   const inFlight = useRef(false);
+  const config = useAppConfig();
+  const user = useUser();
 
-  useEffect(() => {
+  const loadLive = useCallback(() => {
     if (canteen?._id) getCanteen(canteen._id).then(setLiveCanteen).catch(() => {});
   }, [canteen?._id]);
+  useEffect(() => { loadLive(); }, [loadLive]);
+  // Prices, availability or canteen status may change while the student is on this screen.
+  useRealtime(['menu.updated', 'canteen.updated'], (e) => { if (e.type === 'resync' || e.canteenId === canteen?._id) loadLive(); });
 
   useEffect(() => {
     if (!items.length && !inFlight.current) navigation.goBack();
@@ -37,14 +44,17 @@ export default function CheckoutScreen() {
 
   if (!canteen) return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
 
-  const closed = liveCanteen?.openStatus === false;
+  const suspendedCanteen = liveCanteen?.status === 'suspended';
+  const closed = liveCanteen?.openStatus === false || suspendedCanteen;
+  const maintenance = !!config.maintenance?.enabled;
+  const accountSuspended = user?.status === 'suspended';
   const unavailable = liveCanteen
     ? items.filter(i => !liveCanteen.menu?.find(m => m._id === i._id)?.available).map(i => i.name)
     : [];
   const priceChanged = liveCanteen
     ? items.some(i => { const m = liveCanteen.menu?.find(x => x._id === i._id); return m && m.price !== i.price; })
     : false;
-  const blocked = closed || unavailable.length > 0;
+  const blocked = closed || unavailable.length > 0 || maintenance || accountSuspended;
 
   const submit = async () => {
     if (inFlight.current || blocked) return;
@@ -75,7 +85,10 @@ export default function CheckoutScreen() {
       <ScreenHeader title="Checkout" subtitle={canteen.name} />
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: 150 }}>
         <Banner message={error} style={{ marginBottom: space.md }} />
-        {closed ? <Banner tone="warning" message={`${canteen.name} isn't taking orders right now.`} style={{ marginBottom: space.md }} /> : null}
+        {accountSuspended ? <Banner tone="danger" message="Your account is suspended, so you can’t place orders. Contact support from the Help page." style={{ marginBottom: space.md }} /> : null}
+        {maintenance ? <Banner tone="warning" message={config.maintenance.message || 'Ordering is paused for maintenance.'} style={{ marginBottom: space.md }} /> : null}
+        {suspendedCanteen ? <Banner tone="danger" message={`${canteen.name} is temporarily unavailable on Campus Rush.`} style={{ marginBottom: space.md }} />
+          : closed ? <Banner tone="warning" message={`${canteen.name} isn't taking orders right now.`} style={{ marginBottom: space.md }} /> : null}
         {unavailable.length ? (
           <Banner tone="warning" message={`No longer available: ${unavailable.join(', ')}. Remove them from your cart to continue.`} style={{ marginBottom: space.md }} />
         ) : null}

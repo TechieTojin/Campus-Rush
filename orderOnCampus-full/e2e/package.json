@@ -1,0 +1,12 @@
+{
+  "name": "campus-rush-e2e",
+  "private": true,
+  "description": "Real-browser smoke tests for the Super Admin and Canteen websites (uses the locally installed Chrome).",
+  "scripts": {
+    "admin": "node admin-smoke.js",
+    "canteen": "node canteen-smoke.js"
+  },
+  "devDependencies": {
+    "playwright-core": "1.49.1"
+  }
+}

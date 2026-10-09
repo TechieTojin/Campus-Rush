@@ -8,6 +8,7 @@ import { Checkbox, SearchInput, Segmented, Select, Toggle } from '../components/
 import { ConfirmDialog } from '../components/ui/Overlay';
 import { api, errorMessage } from '../lib/api';
 import { useAsync, useDocumentTitle } from '../lib/hooks';
+import { useRealtime } from '../lib/realtimeContext';
 import { money } from '../lib/format';
 import { useSession } from '../lib/sessionContext';
 import { useToast } from '../components/ui/useToast';
@@ -15,9 +16,11 @@ import { DIETARY } from '../lib/constants';
 
 export default function Menu() {
   useDocumentTitle('Menu');
-  const { canteen } = useSession();
+  const { canteen, isManager } = useSession();
   const toast = useToast();
   const { data, error, loading, reload, setData } = useAsync(() => api.menu(canteen._id), [canteen._id]);
+  // Admins can change this menu too; refresh when it changes elsewhere.
+  useRealtime('menu.updated', () => reload({ silent: true }), { debounceMs: 400 });
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [availability, setAvailability] = useState('all');
@@ -97,8 +100,8 @@ export default function Menu() {
         description="Everything students can see in the app. Changes are live as soon as they're saved."
         actions={
           <>
-            <Button variant="secondary" icon={FiLayers} to="/categories">Categories</Button>
-            <Button icon={FiPlus} to="/menu/new">Add menu item</Button>
+            {isManager ? <Button variant="secondary" icon={FiLayers} to="/categories">Categories</Button> : null}
+            {isManager ? <Button icon={FiPlus} to="/menu/new">Add menu item</Button> : null}
           </>
         }
       />
@@ -177,8 +180,8 @@ export default function Menu() {
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex justify-end gap-1">
-                        <Button size="sm" variant="secondary" icon={FiEdit2} to={`/menu/${i._id}/edit`}>Edit</Button>
-                        <IconButton icon={FiTrash2} label={`Remove ${i.name} from menu`} className="text-red-600 hover:bg-red-50" onClick={() => setArchiving(i)} />
+                        {isManager ? <Button size="sm" variant="secondary" icon={FiEdit2} to={`/menu/${i._id}/edit`}>Edit</Button> : null}
+                        {isManager ? <IconButton icon={FiTrash2} label={`Remove ${i.name} from menu`} className="text-red-600 hover:bg-red-50" onClick={() => setArchiving(i)} /> : null}
                       </div>
                     </td>
                   </tr>

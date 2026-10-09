@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme tokens (RGB channels). Light is the default; .dark switches every semantic color. */
+:root {
+  --canvas: 246 245 241;
+  --surface: 255 255 255;
+  --raised: 255 255 255;
+  --sunken: 239 237 231;
+  --line: 228 224 215;
+  --divider: 238 235 228;
+  --ink: 17 27 26;
+  --body: 44 54 52;
+  --muted: 100 111 109;
+  --faint: 150 160 158;
+  --nav: 12 30 29;
+  --nav-deep: 7 20 19;
+  --nav-text: 196 214 211;
+  --brand: 14 107 107;
+  --brand-strong: 9 79 79;
+  --brand-soft: 225 240 238;
+  --accent: 242 158 56;
+  --accent-soft: 255 241 222;
+  --success: 22 128 82;
+  --warning: 178 104 0;
+  --danger: 200 50 50;
+  --info: 37 99 165;
+  --shadow: 17 27 26;
+  color-scheme: light;
+}
+
+.dark {
+  --canvas: 12 17 17;
+  --surface: 20 27 27;
+  --raised: 27 36 36;
+  --sunken: 16 22 22;
+  --line: 44 56 56;
+  --divider: 34 44 44;
+  --ink: 236 242 241;
+  --body: 205 214 212;
+  --muted: 148 162 160;
+  --faint: 104 118 116;
+  --nav: 9 14 14;
+  --nav-deep: 5 9 9;
+  --nav-text: 170 188 186;
+  --brand: 72 178 168;
+  --brand-strong: 120 205 196;
+  --brand-soft: 22 52 50;
+  --accent: 245 177 96;
+  --accent-soft: 58 42 20;
+  --success: 74 196 140;
+  --warning: 240 176 80;
+  --danger: 248 113 113;
+  --info: 110 168 240;
+  --shadow: 0 0 0;
+  color-scheme: dark;
+}
+
+@layer base {
+  html { -webkit-font-smoothing: antialiased; }
+  body { @apply bg-canvas text-body font-sans text-[14px] leading-relaxed transition-colors; }
+  h1, h2, h3, h4 { @apply text-ink tracking-tight; }
+  :focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(var(--brand) / 0.45); border-radius: 8px; }
+  ::selection { background: rgb(var(--brand) / 0.25); }
+}
+
+@layer components {
+  .card { @apply bg-surface rounded-2xl border border-line/80 shadow-card; }
+  .tabular { font-variant-numeric: tabular-nums; }
+  .label { @apply block text-[13px] font-semibold text-ink mb-1.5; }
+  .input {
+    @apply w-full h-11 rounded-xl border border-line bg-surface px-3.5 text-[14px] text-ink placeholder:text-faint
+      transition-colors hover:border-faint focus:border-brand focus:shadow-focus focus:outline-none
+      disabled:bg-sunken disabled:text-muted;
+  }
+  .input-error { @apply border-danger focus:border-danger; }
+  .scroll-thin { scrollbar-width: thin; scrollbar-color: rgb(var(--line)) transparent; }
+  .skeleton { @apply relative overflow-hidden bg-sunken rounded-lg; }
+  .skeleton::after {
+    content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgb(var(--surface) / 0.55), transparent);
+    animation: shimmer 1.4s infinite;
+  }
+  .th { @apply font-semibold px-4 py-3 text-left text-[12px] uppercase tracking-wide text-muted whitespace-nowrap; }
+  .td { @apply px-4 py-3 align-middle; }
+}
+
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}

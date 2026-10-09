@@ -28,7 +28,7 @@ const validate = (f) => {
 
 export default function Profile() {
   useDocumentTitle('Canteen profile');
-  const { canteen, updateCanteenSummary } = useSession();
+  const { canteen, updateCanteenSummary, isManager } = useSession();
   const toast = useToast();
   const { data, error, loading, reload, setData } = useAsync(() => api.canteen(canteen._id), [canteen._id]);
   const [form, setForm] = useState(null);
@@ -66,7 +66,7 @@ export default function Profile() {
       const updated = await api.updateCanteen(canteen._id, changed);
       setData(updated);
       updateCanteenSummary({ _id: updated._id, name: updated.name, location: updated.location, openStatus: updated.openStatus, logo: updated.logo, category: updated.category });
-      toast.success('Students see the update next time they open or refresh the app.', { title: 'Canteen profile saved' });
+      toast.success('Students with the app open see the update within seconds.', { title: 'Canteen profile saved' });
     } catch (e2) {
       setSaveError(errorMessage(e2));
     } finally {
@@ -80,6 +80,7 @@ export default function Profile() {
       <form onSubmit={save} noValidate>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="space-y-6">
+            {!isManager ? <Banner tone="info">Only canteen managers can change the profile. You can view it.</Banner> : null}
             {saveError ? <Banner tone="danger">{saveError}</Banner> : null}
             <Card className="p-5 sm:p-6">
               <Toggle
@@ -142,7 +143,7 @@ export default function Profile() {
               </div>
             </Card>
             <div className="flex flex-col gap-2">
-              <Button type="submit" icon={FiCheck} loading={saving} disabled={!dirty || !!uploading}>Save changes</Button>
+              <Button type="submit" icon={FiCheck} loading={saving} disabled={!isManager || !dirty || !!uploading}>Save changes</Button>
               <Button variant="ghost" onClick={() => { setForm(original); setTouched(false); setSaveError(''); }} disabled={!dirty || saving}>Discard changes</Button>
               {uploading ? <p className="text-[12.5px] text-muted text-center">Waiting for image upload…</p> : null}
             </div>

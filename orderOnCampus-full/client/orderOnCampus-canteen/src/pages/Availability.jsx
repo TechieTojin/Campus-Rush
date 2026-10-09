@@ -7,6 +7,7 @@ import { SearchInput, Toggle } from '../components/ui/Form';
 import { ConfirmDialog } from '../components/ui/Overlay';
 import { api, errorMessage } from '../lib/api';
 import { useAsync, useDocumentTitle } from '../lib/hooks';
+import { useRealtime } from '../lib/realtimeContext';
 import { money, relativeTime } from '../lib/format';
 import { useSession } from '../lib/sessionContext';
 import { useToast } from '../components/ui/useToast';
@@ -29,6 +30,7 @@ export default function Availability() {
   const { canteen } = useSession();
   const toast = useToast();
   const { data, error, loading, reload, setData } = useAsync(() => api.menu(canteen._id), [canteen._id]);
+  useRealtime('menu.updated', () => reload({ silent: true }), { debounceMs: 400 });
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState({});
   const [confirmAll, setConfirmAll] = useState(null);

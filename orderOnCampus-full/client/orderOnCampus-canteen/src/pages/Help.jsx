@@ -1,7 +1,16 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiActivity, FiBarChart2, FiChevronDown, FiDollarSign, FiLifeBuoy, FiPlusCircle, FiToggleRight } from 'react-icons/fi';
-import { Card, PageHeader } from '../components/ui/Display';
-import { useDocumentTitle } from '../lib/hooks';
+import Button from '../components/ui/Button';
+import { Badge, Card, PageHeader } from '../components/ui/Display';
+import { Banner } from '../components/ui/Feedback';
+import { Select, TextArea, TextInput } from '../components/ui/Form';
+import { useToast } from '../components/ui/useToast';
+import { api, errorMessage } from '../lib/api';
+import { relativeTime } from '../lib/format';
+import { useAsync, useDocumentTitle } from '../lib/hooks';
+import { useRealtime } from '../lib/realtimeContext';
+import { useSession } from '../lib/sessionContext';
 
 const GUIDES = [
   {
@@ -68,6 +77,78 @@ const FAQ = [
   { q: 'Can I remove an item that was ordered before?', a: 'Yes. Removing takes it off the menu for students, but past orders keep their record. If it’s only temporarily unavailable, mark it sold out instead.' },
 ];
 
+const TICKET_STATUS = { open: ['Open', 'saffron'], in_progress: ['In progress', 'info'], resolved: ['Resolved', 'success'], closed: ['Closed', 'neutral'] };
+
+// Requests go to Campus Rush admins (Support page in the admin portal); replies show up here.
+function SupportSection() {
+  const { canteen } = useSession();
+  const toast = useToast();
+  const { data: tickets, reload } = useAsync(() => api.supportTickets(canteen._id), [canteen._id]);
+  const { data: config } = useAsync(() => api.appConfig(), []);
+  useRealtime('support.updated', () => reload({ silent: true }));
+  const [form, setForm] = useState({ category: 'menu', subject: '', message: '' });
+  const [touched, setTouched] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const errors = {
+    subject: form.subject.trim().length < 4 ? 'Add a short subject (4+ characters)' : '',
+    message: form.message.trim().length < 10 ? 'Describe the problem (10+ characters)' : '',
+  };
+  const submit = async (e) => {
+    e.preventDefault();
+    setTouched(true);
+    if (errors.subject || errors.message || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const t = await api.createSupportTicket(canteen._id, { ...form, subject: form.subject.trim(), message: form.message.trim() });
+      toast.success(`Request ${t.ref} sent. Replies appear here.`, { title: 'Sent to Campus Rush' });
+      setForm({ category: 'menu', subject: '', message: '' });
+      setTouched(false);
+      reload({ silent: true });
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const support = config?.support || {};
+  return (
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 mt-10">
+      <Card className="p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="h-10 w-10 rounded-xl bg-saffron-100 text-saffron-700 flex items-center justify-center shrink-0"><FiLifeBuoy className="h-5 w-5" aria-hidden /></span>
+          <div><h2 className="font-bold">Contact Campus Rush support</h2><p className="text-[13px] text-muted">Goes to the Campus Rush admin team. No email is sent — replies appear on this page.</p></div>
+        </div>
+        {error ? <Banner tone="danger" className="mb-3">{error}</Banner> : null}
+        <form onSubmit={submit} noValidate className="space-y-3">
+          <Select label="Topic" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+            <option value="menu">Menu or items</option><option value="order">An order</option><option value="payment">Payments</option><option value="account">Account or access</option><option value="app">Website problem</option><option value="other">Something else</option>
+          </Select>
+          <TextInput label="Subject" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} error={touched ? errors.subject : ''} maxLength={120} />
+          <TextArea label="Message" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} error={touched ? errors.message : ''} maxLength={2000} rows={4} />
+          <Button type="submit" loading={busy}>Send request</Button>
+        </form>
+        {support.email || support.phone ? <p className="text-[13px] text-muted mt-4">Urgent? {support.phone ? `Call ${support.phone}` : ''}{support.phone && support.email ? ' or ' : ''}{support.email ? `email ${support.email}` : ''}{support.hours ? ` (${support.hours})` : ''}.</p> : null}
+      </Card>
+      <Card className="p-5">
+        <h2 className="font-bold mb-3">Your requests</h2>
+        {!tickets ? <p className="text-muted">Loading…</p> : !tickets.length ? <p className="text-muted">No requests yet.</p> : (
+          <ul className="space-y-3">
+            {tickets.map((t) => (
+              <li key={t._id} className="rounded-xl border border-line p-3">
+                <div className="flex items-center justify-between gap-2"><span className="font-semibold text-ink">{t.subject}</span><Badge tone={TICKET_STATUS[t.status][1]}>{TICKET_STATUS[t.status][0]}</Badge></div>
+                <p className="text-[12.5px] text-muted font-mono">{t.ref} · {relativeTime(t.createdAt)}</p>
+                {t.replies.map((r, i) => <div key={i} className="mt-2 rounded-lg bg-brand-50 px-3 py-2 text-[13.5px] text-brand-800"><p className="font-semibold text-[12px]">{r.by} · {relativeTime(r.at)}</p><p className="whitespace-pre-line">{r.text}</p></div>)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 export default function Help() {
   useDocumentTitle('Help & support');
   return (
@@ -101,13 +182,7 @@ export default function Help() {
         ))}
       </Card>
 
-      <Card className="p-5 mt-8 flex gap-4 items-start">
-        <span className="h-10 w-10 rounded-xl bg-saffron-100 text-saffron-700 flex items-center justify-center shrink-0"><FiLifeBuoy className="h-5 w-5" aria-hidden /></span>
-        <div>
-          <h2 className="font-bold">Contacting support</h2>
-          <p className="text-[13.5px] text-body mt-1">Campus Rush doesn’t have an in-app support channel yet. For account access, password resets or server problems, contact the Campus Rush administrator at your college who set up your canteen account.</p>
-        </div>
-      </Card>
+      <SupportSection />
     </div>
   );
 }

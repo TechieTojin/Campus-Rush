@@ -8,6 +8,7 @@ import { EmptyState, ErrorState, SkeletonRows } from '../components/ui/Feedback'
 import { SearchInput, Select, TextInput } from '../components/ui/Form';
 import { api, errorMessage } from '../lib/api';
 import { useAsync, useDocumentTitle, usePolling } from '../lib/hooks';
+import { useRealtime } from '../lib/realtimeContext';
 import { dayKeyOffset, downloadCsv, formatDateTime, money, summarizeLines, todayKey } from '../lib/format';
 import { useSession } from '../lib/sessionContext';
 import { useToast } from '../components/ui/useToast';
@@ -78,7 +79,8 @@ export default function Orders() {
     () => (invalidRange ? Promise.resolve({ data: [], total: 0, page: 1, pages: 1 }) : api.orders(canteen._id, query)),
     [canteen._id, JSON.stringify(query)]
   );
-  usePolling(() => reload({ silent: true }), 30000);
+  usePolling(() => reload({ silent: true }), 60000);
+  useRealtime(['order.created', 'order.updated'], () => reload({ silent: true }), { debounceMs: 400 });
 
   const exportCsv = async () => {
     setExporting(true);

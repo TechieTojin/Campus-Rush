@@ -1,10 +1,10 @@
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
-import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import SupportContact from '../components/SupportContact';
 import { ScreenHeader } from '../components/ui/food';
-import { Button, Card } from '../components/ui/primitives';
+import { Card } from '../components/ui/primitives';
 import { colors, radius, space, type } from '../constants/theme';
-import { SUPPORT_EMAILS } from './HelpScreen';
 
 export default function ForgotPasswordScreen() {
   return (
@@ -20,9 +20,7 @@ export default function ForgotPasswordScreen() {
           we'll help you get back into your account.
         </Text>
         <Card style={{ marginTop: space.xl }}>
-          {SUPPORT_EMAILS.map((email) => (
-            <Button key={email} title={email} variant="soft" icon="mail" size="md" onPress={() => Linking.openURL(`mailto:${email}?subject=Campus%20Rush%20password%20help`)} style={{ marginBottom: space.xs }} />
-          ))}
+          <SupportContact subject="Campus Rush password help" />
           <Text style={[type.small, { marginTop: space.xs }]}>
             Already signed in? You can change your password any time from Profile → Change password.
           </Text>

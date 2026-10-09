@@ -10,7 +10,11 @@ import { SectionHeader } from '../components/ui/food';
 import { Chip, IconButton, PressableScale, StatusBadge } from '../components/ui/primitives';
 import { ACTIVE_STATUSES, colors, ORDER_STATUS, radius, shadow, space, type } from '../constants/theme';
 import { refreshUser, useUser } from '../hooks/useSession';
-import { errorMessage, getCanteens, getPopularItems } from '../services/api';
+import { errorMessage, getAnnouncements, getBanners, getCanteens, getPopularItems } from '../services/api';
+import { Announcements, BannerCarousel } from '../components/HomeContent';
+import { Banner } from '../components/ui/feedback';
+import { useAppConfig } from '../hooks/useAppConfig';
+import { useRealtime } from '../hooks/useRealtime';
 import { selectCartCount } from '../slices/CartSlice';
 import { firstName, greeting, initials, orderRef } from '../utils/format';
 
@@ -25,8 +29,19 @@ export default function HomeScreen() {
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [banners, setBanners] = useState([]);
+  const [notes, setNotes] = useState([]);
+  const config = useAppConfig();
+
+  // Banners and announcements are optional extras; the home screen still works if they fail.
+  const loadContent = useCallback(async () => {
+    const [b, n] = await Promise.allSettled([getBanners(), getAnnouncements()]);
+    if (b.status === 'fulfilled') setBanners(b.value);
+    if (n.status === 'fulfilled') setNotes(n.value);
+  }, []);
 
   const load = useCallback(async () => {
+    loadContent();
     try {
       const list = await getCanteens();
       setCanteens(list);
@@ -48,7 +63,11 @@ export default function HomeScreen() {
       setError(errorMessage(e));
       setStatus(s => (s === 'ready' ? 'ready' : 'error'));
     }
-  }, []);
+  }, [loadContent]);
+
+  // Live changes from canteens and admins (menus, canteen status, banners, announcements, orders).
+  useRealtime(['menu.updated', 'canteen.updated', 'order.updated', 'order.created'], () => { load(); refreshUser().catch(() => {}); }, { debounceMs: 600 });
+  useRealtime(['content.updated', 'announcement.updated'], loadContent);
 
   useFocusEffect(
     useCallback(() => {
@@ -76,7 +95,9 @@ export default function HomeScreen() {
     () => canteens.flatMap(c => (c.menu || []).filter(m => m.available).map(item => ({ item, canteen: c }))).slice(0, 8),
     [canteens]
   );
-  const dishes = popular.length ? popular : fallbackDishes;
+  const dishes = config.studentApp?.showPopularItems === false ? [] : popular.length ? popular : fallbackDishes;
+  const featuredIds = (config.studentApp?.featuredCanteens || []).map(String);
+  const featured = featuredIds.map(id => canteens.find(c => c._id === id)).filter(Boolean);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -100,6 +121,15 @@ export default function HomeScreen() {
           <Feather name="search" size={18} color={colors.muted} />
           <Text style={[type.body, { color: colors.faint, marginLeft: 10, flex: 1 }]}>Search dosa, biryani, coffee…</Text>
         </PressableScale>
+
+        {user?.status === 'suspended' ? (
+          <Banner tone="danger" message={`Your account is suspended, so you can’t place new orders.${user.statusReason ? ` Reason: ${user.statusReason}.` : ''} You can still see your past orders. Contact support from your profile’s Help page.`} style={{ marginHorizontal: space.lg, marginBottom: space.md }} />
+        ) : null}
+        {config.maintenance?.enabled ? (
+          <Banner tone="warning" message={config.maintenance.message || 'Campus Rush is under maintenance. Ordering is paused for now — you can still browse menus.'} style={{ marginHorizontal: space.lg, marginBottom: space.md }} />
+        ) : null}
+        <Announcements items={notes} />
+        <BannerCarousel banners={banners} />
 
         {activeOrder ? (
           <PressableScale
@@ -147,6 +177,15 @@ export default function HomeScreen() {
                 <SectionHeader title={popular.length ? 'Popular right now' : 'On the menu today'} style={{ paddingHorizontal: space.lg }} />
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space.lg, paddingVertical: 4 }}>
                   {dishes.map(d => <PopularDishCard key={`${d.canteen._id}-${d.item._id}`} item={d.item} canteen={d.canteen} ordered={d.ordered} />)}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            {featured.length ? (
+              <View style={{ marginBottom: space.lg }}>
+                <SectionHeader title="Featured canteens" style={{ paddingHorizontal: space.lg }} />
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: space.lg, paddingVertical: 4 }}>
+                  {featured.map(c => <CanteenCard key={`f-${c._id}`} canteen={c} compact />)}
                 </ScrollView>
               </View>
             ) : null}

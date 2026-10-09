@@ -11,6 +11,7 @@ import { Badge, Card, CardHeader, PageHeader, StatCard, StatusBadge, Thumb } fro
 import { Banner, EmptyState, ErrorState, Skeleton } from '../components/ui/Feedback';
 import { api } from '../lib/api';
 import { useAsync, useDocumentTitle, usePolling } from '../lib/hooks';
+import { useRealtime } from '../lib/realtimeContext';
 import { money, number, relativeTime, summarizeLines, weekday } from '../lib/format';
 import { useSession } from '../lib/sessionContext';
 
@@ -31,7 +32,8 @@ export default function Dashboard() {
   const { canteen, staff } = useSession();
   const { data, error, loading, reload } = useAsync(() => api.dashboard(canteen._id), [canteen._id]);
   const [openOrder, setOpenOrder] = useState(null);
-  usePolling(() => reload({ silent: true }), 30000);
+  usePolling(() => reload({ silent: true }), 60000);
+  useRealtime(['order.created', 'order.updated', 'menu.updated', 'canteen.updated'], () => reload({ silent: true }), { debounceMs: 600 });
 
   if (error && !data) return <ErrorState message={error} onRetry={reload} />;
   const d = data;

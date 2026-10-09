@@ -98,4 +98,11 @@ export const placeOrder = async ({ canteenId, itemIds }) =>
   (await http.post('/users/place-order', { canteen: canteenId, items: itemIds })).data;
 export const getMyOrders = async () => (await http.get('/users/me/orders')).data.data || [];
 
+// Admin-managed content and configuration
+export const getAppConfig = async () => (await http.get('/app/config', { skipAuth: true })).data.data;
+export const getBanners = async () => (await http.get('/app/banners', { skipAuth: true })).data.data || [];
+export const getAnnouncements = async () => (await http.get('/users/announcements')).data.data || [];
+export const getSupportTickets = async () => (await http.get('/users/support')).data.data || [];
+export const createSupportTicket = async (body) => (await http.post('/users/support', body)).data.data;
+
 export default http;

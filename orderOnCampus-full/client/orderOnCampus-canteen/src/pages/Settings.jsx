@@ -111,10 +111,10 @@ function PreferencesCard() {
       <CardHeader title={<span className="flex items-center gap-2"><FiBell className="h-4 w-4 text-brand-600" aria-hidden />Order alerts</span>} subtitle="Saved to your account, applies on any device you sign in from." />
       <div className="px-5 pb-5 space-y-5">
         <Toggle checked={prefs.soundOnNewOrder !== false} disabled={busy} onChange={(v) => save({ soundOnNewOrder: v })} label="Play a chime for new orders" description="Plays while this portal is open in a browser tab. Browsers may block sound until you've clicked on the page once." />
-        <Select label="Live orders refresh" value={prefs.liveRefreshSeconds || 10} disabled={busy} onChange={(e) => save({ liveRefreshSeconds: Number(e.target.value) })} hint="How often the live order board checks for new orders and changes.">
+        <Select label="Live orders refresh" value={prefs.liveRefreshSeconds || 10} disabled={busy} onChange={(e) => save({ liveRefreshSeconds: Number(e.target.value) })} hint="New orders normally arrive instantly over the live connection. This is how often the board checks if that connection drops.">
           {[5, 10, 15, 30, 60].map((s) => <option key={s} value={s}>Every {s} seconds</option>)}
         </Select>
-        <p className="text-[12.5px] text-muted">Alerts are in-app only. Campus Rush doesn’t send email, SMS or browser push notifications.</p>
+        <p className="text-[12.5px] text-muted">Alerts are in-app only while this portal is open. Campus Rush doesn’t send email, SMS or browser push notifications.</p>
       </div>
     </Card>
   );
