@@ -1,31 +1,43 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import React, { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BrandBackdrop, Wordmark } from '../components/ui/brand';
 import { Banner } from '../components/ui/feedback';
 import { TextField } from '../components/ui/forms';
 import { Button, PressableScale } from '../components/ui/primitives';
+import { Text } from '../components/ui/text';
 import { colors, radius, space, type } from '../constants/theme';
 import { refreshUser, resetTo } from '../hooks/useSession';
 import { errorMessage, login } from '../services/api';
 import { isValidEmail } from '../utils/format';
 
-export function AuthHero({ title, subtitle, compact }) {
+export function AuthHero({ kicker, title, subtitle, compact, dense }) {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.hero, { paddingTop: insets.top + space.xl }, compact && { paddingBottom: 56 }]}>
-      <View style={styles.heroGlow} />
-      <View style={styles.heroRing} />
-      <MaterialCommunityIcons name="silverware-fork-knife" size={120} color="rgba(255,255,255,0.06)" style={styles.heroDecor2} />
-      <View style={styles.brandRow}>
-        <View style={styles.brandMark}>
-          <MaterialCommunityIcons name="silverware-fork-knife" size={20} color={colors.brand} />
-        </View>
-        <Text style={styles.brandName}>Campus Rush</Text>
+    <View style={[styles.hero, { paddingTop: insets.top + space.lg }, compact && { paddingBottom: 64 }]}>
+      <BrandBackdrop />
+      <Wordmark size={17} />
+      <View style={{ marginTop: compact ? space.xl : space.xxl }}>
+        {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
+        <Text style={[styles.heroTitle, dense && styles.heroTitleDense]}>{title}</Text>
+        {subtitle && !dense ? <Text style={styles.heroSub}>{subtitle}</Text> : null}
       </View>
-      <Text style={styles.heroTitle}>{title}</Text>
-      {subtitle ? <Text style={styles.heroSub}>{subtitle}</Text> : null}
+    </View>
+  );
+}
+
+export function TrustStrip() {
+  const items = [['clock', 'Order ahead'], ['map-pin', 'Pick up on campus'], ['credit-card', 'Pay at the counter']];
+  return (
+    <View style={styles.trust}>
+      {items.map(([icon, label]) => (
+        <View key={label} style={styles.trustItem}>
+          <View style={styles.trustIcon}><Feather name={icon} size={15} color={colors.brand} /></View>
+          <Text style={[type.caption, { color: colors.text, textAlign: 'center', marginTop: 6 }]}>{label}</Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -34,6 +46,8 @@ export default function LoginScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const passwordRef = useRef(null);
+  // Short phones (e.g. 720×1280): a compact hero keeps the Sign in button above the fold.
+  const short = useWindowDimensions().height < 700;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
@@ -61,12 +75,12 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.brand }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" bounces={false}>
-        <AuthHero title="Hungry between classes?" subtitle="Order from campus canteens and pick up without the wait." />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + space.xl }]}>
-          <Text style={type.h1}>Welcome back</Text>
-          <Text style={[type.small, { marginTop: 4, marginBottom: space.lg }]}>Sign in with your student account</Text>
+        <AuthHero kicker="WELCOME BACK" title="Hungry between classes?" subtitle="Your campus canteens, one tap away." compact={short} dense={short} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + space.lg }]}>
+          <Text style={type.h1}>Sign in</Text>
+          <Text style={[type.small, { marginTop: 4, marginBottom: space.lg }]}>Use your Campus Rush student account</Text>
 
           <Banner message={formError} style={{ marginBottom: space.md }} />
 
@@ -98,9 +112,10 @@ export default function LoginScreen() {
             returnKeyType="go"
             onSubmitEditing={submit}
             placeholder="Your password"
+            style={{ marginBottom: space.xs }}
           />
 
-          <PressableScale onPress={() => navigation.navigate('ForgotPassword')} hitSlop={8} style={{ alignSelf: 'flex-end', marginBottom: space.lg }}>
+          <PressableScale onPress={() => navigation.navigate('ForgotPassword')} hitSlop={10} style={{ alignSelf: 'flex-end', paddingVertical: 6, marginBottom: space.md }}>
             <Text style={[type.smallStrong, { color: colors.brand }]}>Forgot password?</Text>
           </PressableScale>
 
@@ -108,10 +123,13 @@ export default function LoginScreen() {
 
           <View style={styles.switchRow}>
             <Text style={type.small}>New to Campus Rush? </Text>
-            <PressableScale onPress={() => navigation.navigate('Register')} hitSlop={8}>
+            <PressableScale onPress={() => navigation.navigate('Register')} hitSlop={10}>
               <Text style={[type.smallStrong, { color: colors.brand }]}>Create an account</Text>
             </PressableScale>
           </View>
+
+          <View style={{ flex: 1, minHeight: space.lg }} />
+          <TrustStrip />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -119,23 +137,14 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: { backgroundColor: colors.brand, paddingHorizontal: space.xl, paddingBottom: 72, overflow: 'hidden' },
-  heroGlow: { position: 'absolute', width: 360, height: 360, borderRadius: 180, backgroundColor: colors.brandDeep, top: -150, right: -150, opacity: 0.7 },
-  heroRing: { position: 'absolute', width: 200, height: 200, borderRadius: 100, borderWidth: 24, borderColor: 'rgba(244,162,58,0.16)', top: 30, right: -80 },
-  heroDecor2: { position: 'absolute', left: -24, bottom: 6, transform: [{ rotate: '-20deg' }] },
-  brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: space.xl },
-  brandMark: { width: 40, height: 40, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-6deg' }] },
-  brandName: { color: '#fff', fontWeight: '900', fontSize: 19, letterSpacing: -0.2, marginLeft: 10 },
-  heroTitle: { color: '#fff', fontSize: 32, lineHeight: 38, fontWeight: '800', letterSpacing: -0.6, maxWidth: 300 },
-  heroSub: { color: 'rgba(255,255,255,0.82)', fontSize: 15, lineHeight: 22, marginTop: space.xs, maxWidth: 300 },
-  sheet: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    marginTop: -40,
-    paddingHorizontal: space.xl,
-    paddingTop: space.xl,
-  },
+  hero: { paddingHorizontal: space.xl, paddingBottom: 76, overflow: 'hidden' },
+  kicker: { color: colors.accent, fontSize: 11.5, fontWeight: '800', letterSpacing: 2, marginBottom: 8 },
+  heroTitle: { color: '#fff', fontSize: 33, lineHeight: 39, fontWeight: '800', letterSpacing: -1, maxWidth: 320 },
+  heroTitleDense: { fontSize: 28, lineHeight: 33 },
+  heroSub: { color: colors.onBrandMuted, fontSize: 15, lineHeight: 22, marginTop: space.xs, maxWidth: 300 },
+  sheet: { flex: 1, backgroundColor: colors.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, marginTop: -44, paddingHorizontal: space.xl, paddingTop: space.xl },
   switchRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: space.lg, flexWrap: 'wrap' },
+  trust: { flexDirection: 'row', marginTop: space.lg, paddingTop: space.md, borderTopWidth: 1, borderTopColor: colors.divider },
+  trustItem: { flex: 1, alignItems: 'center' },
+  trustIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.brandTint, alignItems: 'center', justifyContent: 'center' },
 });

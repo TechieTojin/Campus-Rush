@@ -1,10 +1,11 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../components/ui/text';
 import { EmptyState, ErrorState, Skeleton } from '../components/ui/feedback';
 import { FoodArt, ScreenHeader } from '../components/ui/food';
-import { Button, Card, Divider, StatusBadge } from '../components/ui/primitives';
+import { Button, Card, Divider } from '../components/ui/primitives';
 import { ACTIVE_STATUSES, colors, ORDER_STATUS, PROGRESS_STEPS, radius, space, type } from '../constants/theme';
 import useCart from '../hooks/useCart';
 import { useCatalog } from '../hooks/useCatalog';
@@ -45,7 +46,6 @@ function Timeline({ order }) {
                 <Text style={[type.bodyStrong, { flex: 1 }, !done && { color: colors.faint }]}>{meta.title}</Text>
                 {done && time ? <Text style={type.caption}>{formatTime(time)}</Text> : null}
               </View>
-              {isCurrent ? <Text style={type.small}>{meta.hint}</Text> : null}
             </View>
           </View>
         );
@@ -181,10 +181,7 @@ export default function OrderDetailScreen() {
         </Card>
 
         <Card style={{ marginBottom: space.md }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.sm }}>
-            <Text style={type.h3}>Items</Text>
-            <StatusBadge status={order.status} size="sm" />
-          </View>
+          <Text style={[type.h3, { marginBottom: space.sm }]}>Items</Text>
           {lines.map(l => (
             <View key={l._id} style={styles.line}>
               <FoodArt name={l.name} image={l.image} size={42} rounded={10} />

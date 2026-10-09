@@ -1,7 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import React from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { confirm } from '../components/ui/sheet';
+import { Text } from '../components/ui/text';
 import { useSelector } from 'react-redux';
 import { showToast } from '../components/ui/feedback';
 import { ScreenHeader } from '../components/ui/food';
@@ -28,11 +30,10 @@ export default function SettingsScreen() {
   const [label, hint, color] = STATUS[realtime] || STATUS.off;
   const history = recent.items.length + recent.searches.length;
 
-  const clearHistory = () =>
-    Alert.alert('Clear history on this phone?', 'Removes recently viewed dishes and recent searches. Your orders and saved canteens are not affected.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: () => { clearRecent(); showToast('History cleared', 'trash-2'); } },
-    ]);
+  const clearHistory = async () => {
+    const ok = await confirm({ title: 'Clear history on this phone?', message: 'Removes recently viewed dishes and recent searches. Your orders and saved canteens are not affected.', confirmLabel: 'Clear history', tone: 'danger', icon: 'clock' });
+    if (ok) { clearRecent(); showToast('History cleared', 'trash-2'); }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -63,8 +64,8 @@ export default function SettingsScreen() {
 
         <Text style={styles.section}>About</Text>
         <Card style={styles.group}>
-          <Info icon="smartphone" label="App version" value={Constants.expoConfig?.version || '1.0.0'} />
-          <Info icon="server" label="Server" value={API_URL.replace(/^https?:\/\//, '')} last />
+          <Info icon="smartphone" label="App version" value={Constants.expoConfig?.version || '1.0.0'} last={!__DEV__} />
+          {__DEV__ ? <Info icon="server" label="Development server" value={API_URL.replace(/^https?:\/\//, '')} last /> : null}
         </Card>
       </ScrollView>
     </View>

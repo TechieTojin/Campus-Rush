@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, Image, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Text } from './ui/text';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, radius, shadow, space, type } from '../constants/theme';
 import { imageUri } from './ui/food';

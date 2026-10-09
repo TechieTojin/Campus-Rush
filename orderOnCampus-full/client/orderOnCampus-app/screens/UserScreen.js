@@ -1,7 +1,10 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Constants from 'expo-constants';
 import React, { useCallback } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { BrandBackdrop } from '../components/ui/brand';
+import { confirm } from '../components/ui/sheet';
+import { Text } from '../components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Banner, StatusBarScrim } from '../components/ui/feedback';
 import { Avatar, Card, IconButton, ListRow, PressableScale } from '../components/ui/primitives';
@@ -25,11 +28,10 @@ export default function UserScreen() {
   const favCount = user?.favoriteCanteens?.length || 0;
   const since = user?.createdAt ? new Date(user.createdAt) : null;
 
-  const confirmLogout = () =>
-    Alert.alert('Sign out?', "Your cart and recently viewed dishes will be cleared from this phone.", [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: signOut },
-    ]);
+  const confirmLogout = async () => {
+    const ok = await confirm({ title: 'Sign out of Campus Rush?', message: 'Your cart and recently viewed dishes will be cleared from this phone. Your orders stay safe in your account.', confirmLabel: 'Sign out', tone: 'danger', icon: 'log-out' });
+    if (ok) signOut();
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -37,12 +39,12 @@ export default function UserScreen() {
       <Text style={[type.h1, { marginBottom: space.md }]}>Profile</Text>
 
       <View style={styles.profile}>
-        <View style={styles.profileGlow} />
+        <BrandBackdrop />
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Avatar name={user?.name} size={62} />
           <View style={{ flex: 1, marginHorizontal: space.md }}>
-            <Text style={[type.h2, { color: '#fff' }]} numberOfLines={1}>{user?.name || 'Student'}</Text>
-            <Text style={{ color: colors.onBrandMuted, fontSize: 14 }} numberOfLines={1}>{user?.email}</Text>
+            <Text style={[type.h2, { color: '#fff' }]} numberOfLines={2}>{user?.name || 'Student'}</Text>
+            <Text style={{ color: colors.onBrandMuted, fontSize: 13.5 }} numberOfLines={1} ellipsizeMode="middle">{user?.email}</Text>
             {since ? <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 2 }}>Member since {MONTHS[since.getMonth()]} {since.getFullYear()}</Text> : null}
           </View>
           <IconButton icon="edit-2" tone="glass" size={40} onPress={() => navigation.navigate('EditProfile')} accessibilityLabel="Edit profile" />

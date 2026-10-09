@@ -1,7 +1,9 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { confirm } from '../components/ui/sheet';
+import { Text } from '../components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { Banner, EmptyState } from '../components/ui/feedback';
@@ -66,11 +68,10 @@ export default function CartScreen() {
   const { update, remove, maxQty, maxItems } = useCart();
   const live = useLiveCartCanteen();
 
-  const clear = () =>
-    Alert.alert('Clear your cart?', 'This removes every item from your cart.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear cart', style: 'destructive', onPress: () => { animateLayout(); dispatch(emptyCart()); } },
-    ]);
+  const clear = async () => {
+    const ok = await confirm({ title: 'Clear your cart?', message: `This removes every item from ${canteen?.name || 'your cart'}.`, confirmLabel: 'Clear cart', tone: 'danger', icon: 'trash-2' });
+    if (ok) { animateLayout(); dispatch(emptyCart()); }
+  };
 
   if (!items.length) {
     return (
@@ -117,7 +118,7 @@ export default function CartScreen() {
           <View style={styles.canteenIcon}><MaterialCommunityIcons name="storefront-outline" size={20} color={colors.brand} /></View>
           <View style={{ flex: 1, marginLeft: space.sm }}>
             <Text style={type.caption}>PICKUP FROM</Text>
-            <Text style={type.bodyStrong} numberOfLines={1}>{canteen.name}</Text>
+            <Text style={type.bodyStrong} numberOfLines={2}>{canteen.name}</Text>
           </View>
           <View style={styles.addMore}>
             <Feather name="plus" size={14} color={colors.brand} />
@@ -131,7 +132,7 @@ export default function CartScreen() {
             return (
               <View key={item._id} style={[styles.item, idx < items.length - 1 && styles.itemBorder]}>
                 <FoodArt name={item.name} image={item.image} size={60} rounded={radius.sm} dimmed={out} />
-                <View style={{ flex: 1, marginHorizontal: space.sm }}>
+                <View style={{ flex: 1, marginLeft: space.sm }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <DietMark dietary={item.dietary} size={12} />
                     <Text style={[type.bodyStrong, { flex: 1, marginLeft: item.dietary ? 6 : 0 }, out && { color: colors.muted }]} numberOfLines={2}>{item.name}</Text>
@@ -143,19 +144,20 @@ export default function CartScreen() {
                       <Text style={[type.caption, { color: colors.danger, marginLeft: 4 }]}>Sold out · Remove</Text>
                     </PressableScale>
                   ) : null}
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  {out ? null : (
-                    <QuantityStepper
-                      compact
-                      name={item.name}
-                      quantity={item.quantity}
-                      maxReached={item.quantity >= maxQty || count >= maxItems}
-                      onIncrease={() => update(item._id, item.quantity + 1)}
-                      onDecrease={() => update(item._id, item.quantity - 1)}
-                    />
-                  )}
-                  <Text style={[type.price, { marginTop: 6 }, out && { color: colors.faint, textDecorationLine: 'line-through' }]}>{formatPrice(item.price * item.quantity)}</Text>
+                  {/* Stepper and line total sit under the name so long dish names get the full width. */}
+                  <View style={styles.itemFoot}>
+                    {out ? <View /> : (
+                      <QuantityStepper
+                        compact
+                        name={item.name}
+                        quantity={item.quantity}
+                        maxReached={item.quantity >= maxQty || count >= maxItems}
+                        onIncrease={() => update(item._id, item.quantity + 1)}
+                        onDecrease={() => update(item._id, item.quantity - 1)}
+                      />
+                    )}
+                    <Text style={[type.price, out && { color: colors.faint, textDecorationLine: 'line-through' }]}>{formatPrice(item.price * item.quantity)}</Text>
+                  </View>
                 </View>
               </View>
             );
@@ -187,7 +189,8 @@ const styles = StyleSheet.create({
   canteen: { flexDirection: 'row', alignItems: 'center', padding: space.md, backgroundColor: colors.surface, borderRadius: radius.lg, marginBottom: space.md, borderWidth: 1, borderColor: colors.divider, ...shadow.card },
   canteenIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center' },
   addMore: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.brandTint, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7 },
-  item: { flexDirection: 'row', alignItems: 'center', paddingVertical: space.sm },
+  item: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: space.sm },
+  itemFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.xs },
   itemBorder: { borderBottomWidth: 1, borderBottomColor: colors.divider },
   outBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: 4 },
   row: { flexDirection: 'row', alignItems: 'center', marginVertical: 4 },

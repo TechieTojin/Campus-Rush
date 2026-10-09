@@ -1,7 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { setStatusBarStyle } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Keyboard, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '../components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { ACTIVE_STATUSES, colors, shadow } from '../constants/theme';
@@ -39,14 +41,15 @@ function TabItem({ route, focused, onPress, badge }) {
     >
       <View style={styles.pillWrap}>
         <Animated.View style={[styles.pill, { opacity: anim, transform: [{ scaleX: anim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }] }]} />
-        <Animated.View style={{ transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [0, -1] }) }] }}>
-          <Feather name={meta.icon} size={21} color={focused ? colors.brand : colors.faint} />
+        <Animated.View style={{ transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] }) }] }}>
+          <Feather name={meta.icon} size={20} color={focused ? '#fff' : colors.muted} />
         </Animated.View>
+        {focused ? <View style={styles.spark} /> : null}
         {badge ? (
           <View style={styles.dot}><Text style={styles.dotText}>{badge}</Text></View>
         ) : null}
       </View>
-      <Text style={[styles.label, focused && { color: colors.brand, fontWeight: '800' }]}>{meta.label}</Text>
+      <Text style={[styles.label, focused && { color: colors.ink, fontWeight: '800' }]}>{meta.label}</Text>
     </Pressable>
   );
 }
@@ -87,7 +90,8 @@ export default function TabNavigation() {
   // Suspension or reactivation by an admin: reload the account so banners and checkout reflect it.
   useRealtime('account.updated', () => { refreshUser().catch(() => {}); });
   return (
-    <Tab.Navigator tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
+    <Tab.Navigator tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false }}
+      screenListeners={({ route }) => ({ focus: () => { if (route.name !== 'Home') setStatusBarStyle('dark'); } })}>
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Discover" component={SearchScreen} />
       <Tab.Screen name="Orders" component={OrdersScreen} />
@@ -98,13 +102,14 @@ export default function TabNavigation() {
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 8, paddingHorizontal: 4, ...shadow.card },
-  item: { flex: 1, alignItems: 'center', minHeight: 52 },
-  pillWrap: { width: 60, height: 32, alignItems: 'center', justifyContent: 'center' },
-  pill: { position: 'absolute', width: 60, height: 32, borderRadius: 16, backgroundColor: colors.brandSoft },
-  label: { fontSize: 11, marginTop: 3, color: colors.faint, fontWeight: '600' },
+  bar: { flexDirection: 'row', backgroundColor: colors.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingTop: 10, paddingHorizontal: 6, borderWidth: 1, borderBottomWidth: 0, borderColor: colors.divider, ...shadow.raised },
+  item: { flex: 1, alignItems: 'center', minHeight: 54 },
+  pillWrap: { width: 52, height: 36, alignItems: 'center', justifyContent: 'center' },
+  pill: { position: 'absolute', width: 52, height: 36, borderRadius: 13, backgroundColor: colors.brand },
+  spark: { position: 'absolute', top: -2, right: 4, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent, borderWidth: 1.5, borderColor: colors.surface },
+  label: { fontSize: 11, marginTop: 4, color: colors.muted, fontWeight: '600' },
   dot: {
-    position: 'absolute', top: -3, right: 8, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
+    position: 'absolute', top: -4, right: 2, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.surface,
   },
   dotText: { fontSize: 10, fontWeight: '800', color: colors.ink },

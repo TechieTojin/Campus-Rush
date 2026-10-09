@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
-import { Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { showToast } from '../components/ui/feedback';
+import { confirm } from '../components/ui/sheet';
 import { animateLayout } from '../components/ui/primitives';
 import { addToCart, removeItem, restoreItem, selectCartCanteen, selectCartCount, selectCartItems, setCart, setQuantity } from '../slices/CartSlice';
 import { orderLines } from '../utils/format';
@@ -23,11 +23,13 @@ export default function useCart() {
 
   const confirmSwitch = useCallback((canteen, commit) => {
     if (cartCanteen && cartCanteen._id !== canteen._id) {
-      Alert.alert(
-        'Start a new cart?',
-        `Your cart has items from ${cartCanteen.name}. An order can only come from one canteen, so this will replace your current cart.`,
-        [{ text: 'Keep current cart', style: 'cancel' }, { text: 'Start new cart', style: 'destructive', onPress: commit }]
-      );
+      confirm({
+        title: 'Start a new cart?',
+        message: `Your cart has items from ${cartCanteen.name}. An order can only come from one canteen, so this replaces your current cart.`,
+        confirmLabel: 'Start new cart',
+        cancelLabel: 'Keep cart',
+        icon: 'shopping-bag',
+      }).then((ok) => ok && commit());
       return;
     }
     commit();

@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Text } from '../components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { DishTile } from '../components/cards';
@@ -61,7 +62,7 @@ export default function FoodDetailScreen() {
             {diet ? <View style={styles.dietChip}><DietMark dietary={item.dietary} size={14} showLabel /></View> : null}
             {item.prepTime ? <Tag label={`About ${item.prepTime} min to prepare`} icon="clock" tone="neutral" style={{ marginLeft: diet ? space.xs : 0 }} /> : null}
           </View>
-          <Text style={type.display}>{item.name}</Text>
+          <Text style={[type.display, { letterSpacing: 0 }]}>{item.name}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: space.xs }}>
             <Text style={[type.h1, { color: colors.brand }]}>{formatPrice(item.price)}</Text>
             {!item.available ? <Tag label="Not available right now" tone="danger" icon="x" style={{ marginLeft: space.sm }} /> : null}

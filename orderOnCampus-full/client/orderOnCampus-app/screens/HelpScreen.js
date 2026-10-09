@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../components/ui/text';
 import SupportContact from '../components/SupportContact';
 import { Banner } from '../components/ui/feedback';
 import { ScreenHeader } from '../components/ui/food';

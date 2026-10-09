@@ -1,10 +1,8 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DefaultTheme, getFocusedRouteNameFromRoute, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
 import { colors } from '../constants/theme';
 import { handleSessionExpired, navigationRef, refreshUser } from '../hooks/useSession';
 import CanteenScreen from '../screens/CanteenScreen';
@@ -22,51 +20,24 @@ import PrivacyScreen from '../screens/PrivacyScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import SearchScreen from '../screens/SearchScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import WelcomeScreen, { ONBOARDED_KEY } from '../screens/WelcomeScreen';
+import { clearSession, getToken, isNetworkError, onUnauthorized } from '../services/api';
 import { loadCart } from '../services/storage';
 import { setCart } from '../slices/CartSlice';
 import { enableCartPersistence, store } from '../store';
-import { clearSession, getToken, isNetworkError, onUnauthorized } from '../services/api';
 import TabNavigation from './tabNavigation';
 
 const Stack = createNativeStackNavigator();
-
 const LIGHT_BAR = { statusBarStyle: 'light' };
-
-const theme ={ ...DefaultTheme, colors: { ...DefaultTheme.colors, background: colors.bg, primary: colors.brand } };
-
-function BootScreen() {
-  const fade = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.85)).current;
-  useEffect(() => {
-    SplashScreen.hideAsync().catch(() => {});
-    Animated.parallel([
-      Animated.timing(fade, { toValue: 1, duration: 450, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 8, bounciness: 10 }),
-    ]).start();
-  }, [fade, scale]);
-  return (
-    <View style={styles.boot}>
-      <StatusBar style="light" translucent backgroundColor="transparent" />
-      <View style={styles.bootGlow} />
-      <View style={styles.bootRing} />
-      <Animated.View style={{ alignItems: 'center', opacity: fade, transform: [{ scale }] }}>
-        <View style={styles.bootMark}>
-          <MaterialCommunityIcons name="silverware-fork-knife" size={40} color={colors.brand} />
-          <View style={styles.bootDot} />
-        </View>
-        <Text style={styles.bootTitle}>Campus Rush</Text>
-        <Text style={styles.bootTag}>Order ahead. Skip the queue.</Text>
-      </Animated.View>
-    </View>
-  );
-}
+const theme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: colors.bg, primary: colors.brand } };
 
 export default function Navigation() {
   const [initialRoute, setInitialRoute] = useState(null);
 
+  // The native splash (same artwork) stays visible while the session is restored, so there is
+  // no second boot screen and no flash of the wrong screen.
   useEffect(() => {
     onUnauthorized(handleSessionExpired);
-    const minDelay = new Promise(r => setTimeout(r, 900));
     (async () => {
       let route = 'Login';
       const token = await getToken();
@@ -78,33 +49,35 @@ export default function Navigation() {
           if (isNetworkError(e)) route = 'Main';
           else await clearSession();
         }
+      } else if (!(await AsyncStorage.getItem(ONBOARDED_KEY).catch(() => null))) {
+        route = 'Welcome';
       }
       if (route === 'Main') {
         // Bring back the cart from the last session; it's re-checked against live menus before checkout.
         const saved = await loadCart();
         if (saved?.canteen && saved.items?.length) store.dispatch(setCart(saved));
       }
-      await minDelay;
       enableCartPersistence();
       setInitialRoute(route);
     })();
   }, []);
 
-  if (!initialRoute) return <BootScreen />;
+  if (!initialRoute) return null;
 
   return (
-    <NavigationContainer ref={navigationRef} theme={theme}>
+    <NavigationContainer ref={navigationRef} theme={theme} onReady={() => SplashScreen.hideAsync().catch(() => {})}>
       <Stack.Navigator
         initialRouteName={initialRoute}
         screenOptions={{ headerShown: false, animation: 'slide_from_right', contentStyle: { backgroundColor: colors.bg }, statusBarStyle: 'dark', statusBarTranslucent: true, statusBarColor: 'transparent' }}
       >
+        <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ animation: 'fade', ...LIGHT_BAR }} />
         <Stack.Screen name="Login" component={LoginScreen} options={{ animation: 'fade', ...LIGHT_BAR }} />
         <Stack.Screen name="Register" component={RegisterScreen} options={LIGHT_BAR} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-        <Stack.Screen name="Main" component={TabNavigation} options={{ animation: 'fade' }} />
+        <Stack.Screen name="Main" component={TabNavigation} options={({ route }) => ({ animation: 'fade', statusBarStyle: (getFocusedRouteNameFromRoute(route) ?? 'Home') === 'Home' ? 'light' : 'dark' })} />
         <Stack.Screen name="Search" component={SearchScreen} options={{ animation: 'fade_from_bottom' }} />
         <Stack.Screen name="Canteen" component={CanteenScreen} options={LIGHT_BAR} />
-        <Stack.Screen name="FoodDetail" component={FoodDetailScreen} options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="FoodDetail" component={FoodDetailScreen} options={{ animation: 'slide_from_bottom', ...LIGHT_BAR }} />
         <Stack.Screen name="Cart" component={CartScreen} options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="Checkout" component={CheckoutScreen} />
         <Stack.Screen name="OrderSuccess" component={OrderSuccessScreen} options={{ animation: 'fade', gestureEnabled: false, ...LIGHT_BAR }} />
@@ -118,13 +91,3 @@ export default function Navigation() {
     </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  boot: { flex: 1, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  bootGlow: { position: 'absolute', width: 420, height: 420, borderRadius: 210, backgroundColor: colors.brandDeep, top: -160, right: -180, opacity: 0.7 },
-  bootRing: { position: 'absolute', width: 260, height: 260, borderRadius: 130, borderWidth: 30, borderColor: 'rgba(244,162,58,0.14)', bottom: -90, left: -110 },
-  bootMark: { width: 96, height: 96, borderRadius: 32, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginBottom: 22, transform: [{ rotate: '-6deg' }] },
-  bootDot: { position: 'absolute', width: 18, height: 18, borderRadius: 9, backgroundColor: colors.accent, top: -5, right: -5, borderWidth: 3, borderColor: colors.brand },
-  bootTitle: { color: '#fff', fontSize: 32, fontWeight: '900', letterSpacing: -0.5 },
-  bootTag: { color: colors.onBrandMuted, fontSize: 15, marginTop: 6, fontWeight: '500' },
-});

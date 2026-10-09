@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadow, space, type } from '../../constants/theme';
 import { Button } from './primitives';
@@ -92,8 +93,9 @@ export function Skeleton({ width = '100%', height = 16, radius: r = 10, style })
 }
 
 // Opaque strip behind the translucent Android status bar so scrolled content never collides with the clock.
-export function StatusBarScrim() {
+export function StatusBarScrim({ visible = true }) {
   const insets = useSafeAreaInsets();
+  if (!visible) return null;
   return <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: colors.bg, zIndex: 10, elevation: 30, shadowColor: 'transparent' }} />;
 }
 

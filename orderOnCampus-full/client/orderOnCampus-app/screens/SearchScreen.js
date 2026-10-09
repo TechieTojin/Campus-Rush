@@ -1,7 +1,8 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Keyboard, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Keyboard, StyleSheet, View } from 'react-native';
+import { Text } from '../components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CanteenCard, CartBar, DishRow } from '../components/cards';
 import { EmptyState, ErrorState, Skeleton } from '../components/ui/feedback';
@@ -113,10 +114,10 @@ export default function SearchScreen() {
           <Text style={[type.overline, { marginBottom: space.sm }]}>Browse by craving</Text>
           <View style={styles.grid}>
             {groups.map(g => (
-              <PressableScale key={g.label} onPress={() => setCraving(g.label)} scaleTo={0.95} style={[styles.gridTile, { backgroundColor: g.tint }]} accessibilityLabel={`${g.label}, ${g.count} dish${g.count === 1 ? '' : 'es'} available`}>
-                <MaterialCommunityIcons name={g.icon} size={28} color={g.color} />
+              <PressableScale key={g.label} onPress={() => setCraving(g.label)} scaleTo={0.95} style={[styles.gridTile, { backgroundColor: g.tint }]} accessibilityLabel={`${g.label}: ${g.names.join(', ')}`}>
+                <View style={styles.gridPlate}><MaterialCommunityIcons name={g.icon} size={24} color={g.color} /></View>
                 <Text style={[styles.gridLabel, { color: colors.ink }]} numberOfLines={2}>{g.label}</Text>
-                <Text style={[type.caption, { color: g.color }]}>{g.count} dish{g.count === 1 ? '' : 'es'}</Text>
+                <Text style={[type.caption, { color: colors.text }]} numberOfLines={1}>{g.names.slice(0, 2).join(' · ')}{g.count > 2 ? `  +${g.count - 2}` : ''}</Text>
               </PressableScale>
             ))}
           </View>
@@ -232,6 +233,7 @@ const styles = StyleSheet.create({
   dishWrap: { marginHorizontal: space.lg, borderBottomWidth: 1, borderBottomColor: colors.divider },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   gridTile: { width: '48.5%', borderRadius: radius.lg, padding: space.md, marginBottom: space.sm, minHeight: 112, justifyContent: 'space-between' },
+  gridPlate: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   gridLabel: { fontSize: 14.5, fontWeight: '800', marginTop: space.xs },
   canteenRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.md, padding: space.sm, marginBottom: space.xs, borderWidth: 1, borderColor: colors.divider, ...shadow.card },
   openPill: { borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },

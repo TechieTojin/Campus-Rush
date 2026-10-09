@@ -1,7 +1,8 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, StyleSheet, View } from 'react-native';
+import { FONT, Text } from './text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '../../config/api';
 import { colors, DIETARY, radius, space, type } from '../../constants/theme';
@@ -11,14 +12,16 @@ import { IconButton, PressableScale } from './primitives';
 // Uploaded images are stored as API-relative paths (/uploads/...).
 export const imageUri = (path) => (path ? (/^https?:\/\//.test(path) ? path : `${API_URL}${path}`) : null);
 
-// Real photo when the canteen uploaded one; otherwise a consistent illustrated tile (never a broken image).
+// Real photo when the canteen uploaded one; otherwise a "plate" composition — a white disc with the
+// dish icon on a tinted surface and soft rings. Clearly artwork, never a fake photo or a broken image.
 export function FoodArt({ name, image, size = 72, height, rounded = radius.md, style, dimmed }) {
   const v = foodVisual(name);
   const [failed, setFailed] = useState(false);
   const fade = useRef(new Animated.Value(0)).current;
   const uri = imageUri(image);
   const h = height || size;
-  const iconSize = Math.min((typeof size === 'number' ? Math.min(size, h) : h) * 0.44, 120);
+  const base = typeof size === 'number' ? Math.min(size, h) : h;
+  const plate = Math.min(base * 0.62, 150);
   useEffect(() => { setFailed(false); fade.setValue(0); }, [uri, fade]);
   return (
     <View
@@ -26,8 +29,11 @@ export function FoodArt({ name, image, size = 72, height, rounded = radius.md, s
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <View style={[styles.artGlow, { width: h * 1.1, height: h * 1.1, borderRadius: h, backgroundColor: v.color }]} />
-      <MaterialCommunityIcons name={v.icon} size={iconSize} color={v.color} />
+      <View style={[styles.ringOuter, { width: plate * 1.75, height: plate * 1.75, borderRadius: plate, borderColor: v.color }]} />
+      <View style={[styles.plate, { width: plate, height: plate, borderRadius: plate }]}>
+        <View style={[styles.plateRim, { width: plate * 0.78, height: plate * 0.78, borderRadius: plate, borderColor: v.tint }]} />
+        <MaterialCommunityIcons name={v.icon} size={plate * 0.46} color={v.color} />
+      </View>
       {uri && !failed ? (
         <Animated.Image
           source={{ uri }}
@@ -42,8 +48,12 @@ export function FoodArt({ name, image, size = 72, height, rounded = radius.md, s
   );
 }
 
-export function CanteenCover({ canteen, height = 140, rounded = radius.lg, children, style, dim = 0.18 }) {
+const monogram = (name = '') => name.replace(/[^A-Za-z0-9 ]/g, '').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('') || 'CR';
+
+// Canteen cover: the uploaded photo, or a brand-palette identity built from the canteen's monogram.
+export function CanteenCover({ canteen, height = 140, rounded = radius.lg, children, style, dim = 0.18, compact: compactProp }) {
   const v = canteenVisual(canteen);
+  const compact = compactProp || height < 90;
   const [failed, setFailed] = useState(false);
   const uri = imageUri(canteen?.coverImage);
   useEffect(() => setFailed(false), [uri]);
@@ -52,20 +62,24 @@ export function CanteenCover({ canteen, height = 140, rounded = radius.lg, child
       {uri && !failed ? (
         <>
           <Image source={{ uri }} onError={() => setFailed(true)} resizeMode="cover" style={StyleSheet.absoluteFill} accessibilityIgnoresInvertColors />
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(17,28,26,${dim})` }]} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(10,24,21,${dim})` }]} />
         </>
       ) : (
         <View style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          <View style={[styles.coverDisc, { width: height * 1.5, height: height * 1.5, borderRadius: height, backgroundColor: v.fg, right: -height * 0.45, top: -height * 0.55 }]} />
-          <View style={[styles.coverRing, { width: height * 1.1, height: height * 1.1, borderRadius: height, borderColor: v.fg, left: -height * 0.35, bottom: -height * 0.6 }]} />
-          <MaterialCommunityIcons name={v.icon} size={height * 0.62} color={v.fg} style={[styles.coverIcon, { right: height * 0.12, top: height * 0.1 }]} />
+          <View style={[styles.coverArc, { width: height * 2, height: height * 2, borderRadius: height * 2, backgroundColor: v.fg, right: -height * 1.15, top: -height * 0.9 }]} />
+          {!compact ? (
+            <Text style={[styles.monogram, { color: v.fg, fontSize: height * 0.62, lineHeight: height * 0.72, right: height * 0.16, bottom: height * 0.08 }]}>{monogram(canteen?.name)}</Text>
+          ) : null}
+          <View style={[styles.coverDots, { left: height * 0.12, bottom: height * 0.14 }]}>
+            {Array.from({ length: 12 }).map((_, i) => <View key={i} style={[styles.coverDot, { backgroundColor: v.fg }]} />)}
+          </View>
+          {compact ? <MaterialCommunityIcons name={v.icon} size={height * 0.42} color={v.fg} style={{ position: 'absolute', alignSelf: 'center', top: height * 0.29, opacity: 0.85 }} /> : null}
         </View>
       )}
       {children}
     </View>
   );
 }
-
 // Standard Indian food-marking symbols (square outline + dot / triangle), only when the canteen set it.
 export function DietMark({ dietary, size = 14, showLabel }) {
   const meta = DIETARY[dietary];
@@ -176,11 +190,14 @@ export function SectionHeader({ title, subtitle, action, onAction, style, icon }
 
 const styles = StyleSheet.create({
   art: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  artGlow: { position: 'absolute', opacity: 0.07, bottom: '-35%', right: '-35%' },
+  ringOuter: { position: 'absolute', borderWidth: 1.5, opacity: 0.14 },
+  plate: { backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#3A2A10', shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
+  plateRim: { position: 'absolute', borderWidth: 1.5 },
   cover: { overflow: 'hidden', justifyContent: 'flex-end' },
-  coverDisc: { position: 'absolute', opacity: 0.14 },
-  coverRing: { position: 'absolute', borderWidth: 2, opacity: 0.22 },
-  coverIcon: { position: 'absolute', opacity: 0.5 },
+  coverArc: { position: 'absolute', opacity: 0.12 },
+  monogram: { position: 'absolute', fontWeight: '800', letterSpacing: -2, opacity: 0.34 },
+  coverDots: { position: 'absolute', width: 64, flexDirection: 'row', flexWrap: 'wrap', opacity: 0.35 },
+  coverDot: { width: 3, height: 3, borderRadius: 2, margin: 6 },
   mark: { borderWidth: 1.5, borderRadius: 3, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
   tri: { width: 0, height: 0, borderLeftColor: 'transparent', borderRightColor: 'transparent' },
   prep: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceAlt, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 3, alignSelf: 'flex-start' },
@@ -190,7 +207,7 @@ const styles = StyleSheet.create({
   addText: { fontSize: 13.5, fontWeight: '800', color: colors.brand, letterSpacing: 0.3 },
   stepper: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.pill, backgroundColor: colors.brand, paddingHorizontal: 3 },
   stepBtn: { borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
-  stepQty: { minWidth: 24, textAlign: 'center', color: colors.onBrand, fontWeight: '800', fontSize: 15 },
+  stepQty: { minWidth: 24, textAlign: 'center', color: colors.onBrand, fontFamily: FONT[800], fontSize: 15 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.lg, paddingBottom: space.sm, backgroundColor: colors.bg },
   section: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: space.sm },
   sectionIcon: { marginRight: space.xs },

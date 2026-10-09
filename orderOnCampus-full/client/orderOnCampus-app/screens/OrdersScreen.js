@@ -1,6 +1,7 @@
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { Text } from '../components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 import { ActiveOrderCard, OrderCard } from '../components/cards';
@@ -63,7 +64,7 @@ export default function OrdersScreen() {
         <Text style={type.h1}>My orders</Text>
         <View style={styles.liveRow} accessibilityLiveRegion="polite">
           <View style={[styles.liveDot, { backgroundColor: live ? colors.success : colors.faint }]} />
-          <Text style={type.small}>{live ? 'Live — updates the moment the canteen changes a status' : 'Reconnecting… pull down to refresh'}</Text>
+          <Text style={type.small}>{live ? 'Live — updates as the canteen changes status' : 'Reconnecting… pull down to refresh'}</Text>
         </View>
         <Segmented
           value={tab}
@@ -98,6 +99,18 @@ export default function OrdersScreen() {
           contentContainerStyle={{ padding: space.lg, paddingTop: space.md, flexGrow: 1 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.brand]} />}
           ListHeaderComponent={error ? <Text style={[type.small, { color: colors.danger, marginBottom: space.sm }]}>Couldn't refresh just now — showing your last loaded orders.</Text> : null}
+          ListFooterComponent={tab === 'active' && active.length && past.length ? (
+            <View style={{ marginTop: space.lg }}>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: space.sm }}>
+                <Text style={type.h2}>Recent orders</Text>
+                <Text style={[type.smallStrong, { color: colors.brand }]} onPress={() => setTab('past')} accessibilityRole="button">See all {past.length}</Text>
+              </View>
+              {past.slice(0, 3).map(o => (
+                <OrderCard key={o._id} order={o} onPress={() => navigation.navigate('OrderDetail', { orderId: o._id })}
+                  onReorder={o.canteen?._id ? () => reorder(o, catalog.canteenById(o.canteen._id), () => navigation.navigate('Cart')) : undefined} />
+              ))}
+            </View>
+          ) : null}
           ListEmptyComponent={
             tab === 'active' ? (
               <EmptyState

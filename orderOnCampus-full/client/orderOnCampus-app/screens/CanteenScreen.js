@@ -1,7 +1,8 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch } from 'react-redux';
 import { CartBar, DishRow, prepSpan } from '../components/cards';
@@ -243,7 +244,8 @@ export default function CanteenScreen() {
       />
 
       <Animated.View pointerEvents="none" style={[styles.solidBar, { height: insets.top + 60, opacity: barOpacity }]}>
-        <Text style={[type.h3, { marginTop: insets.top + 18, textAlign: 'center', marginHorizontal: 110 }]} numberOfLines={1}>{canteen.name}</Text>
+        {/* Title fills the gap between the back button and the right-hand actions; long names shrink slightly before truncating. */}
+        <Text style={[type.h3, { marginTop: insets.top + 18, marginLeft: 76, marginRight: favoritesOn ? 128 : 76 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{canteen.name}</Text>
       </Animated.View>
       <View style={[styles.topBar, { top: insets.top + space.xs }]}>
         <IconButton icon="arrow-left" tone="glass" onPress={() => navigation.goBack()} accessibilityLabel="Go back" />

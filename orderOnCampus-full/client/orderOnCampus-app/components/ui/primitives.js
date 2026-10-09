@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, LayoutAnimation, Platform, Pressable, StyleSheet, Text, UIManager, View } from 'react-native';
+import { ActivityIndicator, Animated, LayoutAnimation, Platform, Pressable, StyleSheet, UIManager, View } from 'react-native';
+import { Text } from './text';
 import { colors, ORDER_STATUS, radius, shadow, space, touch, type } from '../../constants/theme';
 import { initials } from '../../utils/format';
 

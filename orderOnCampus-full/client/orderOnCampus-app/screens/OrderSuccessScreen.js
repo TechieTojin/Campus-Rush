@@ -1,8 +1,10 @@
 import { Feather } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useRef } from 'react';
-import { Animated, BackHandler, StyleSheet, Text, View } from 'react-native';
+import { Animated, BackHandler, StyleSheet, View } from 'react-native';
+import { Text } from '../components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BrandBackdrop } from '../components/ui/brand';
 import { Button, Divider } from '../components/ui/primitives';
 import { colors, radius, shadow, space, type } from '../constants/theme';
 import { formatPrice, orderLines, orderRef } from '../utils/format';
@@ -35,8 +37,7 @@ export default function OrderSuccessScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + space.xxl, paddingBottom: Math.max(insets.bottom, space.lg) }]}>
-      <View style={styles.decor1} />
-      <View style={styles.decor2} />
+      <BrandBackdrop />
       <View style={{ alignItems: 'center' }}>
         <View style={styles.checkWrap}>
           <Animated.View style={[styles.ring, { opacity: ring.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] }), transform: [{ scale: ring.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.7] }) }] }]} />
@@ -48,7 +49,7 @@ export default function OrderSuccessScreen() {
         <Text style={styles.sub}>{canteen.name} has your order. We'll update you here the moment it's ready.</Text>
       </View>
 
-      <Animated.View style={[styles.ticket, { opacity: rise, transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) }] }]}>
+      <Animated.View style={[styles.ticket, { transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [60, 0] }) }] }]}>
         <Text style={[type.overline, { textAlign: 'center' }]}>Your pickup code</Text>
         <Text style={styles.code} accessibilityLabel={`Pickup code ${code.split('').join(' ')}`}>{code}</Text>
         <Text style={[type.small, { textAlign: 'center' }]}>Show this at the counter when your order is ready</Text>
@@ -91,7 +92,7 @@ const styles = StyleSheet.create({
   title: { color: '#fff', fontSize: 30, fontWeight: '800', letterSpacing: -0.6 },
   sub: { color: colors.onBrandMuted, fontSize: 15, lineHeight: 22, textAlign: 'center', marginTop: space.xs, maxWidth: 310 },
   ticket: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: space.lg, ...shadow.raised },
-  code: { fontSize: 40, fontWeight: '900', color: colors.ink, letterSpacing: 6, textAlign: 'center', marginVertical: space.xs },
+  code: { fontSize: 40, fontWeight: '800', color: colors.ink, letterSpacing: 6, textAlign: 'center', marginVertical: space.xs },
   perforation: { height: 24, justifyContent: 'center', marginVertical: space.sm },
   dash: { borderTopWidth: 2, borderStyle: 'dashed', borderColor: colors.border },
   notch: { position: 'absolute', width: 20, height: 20, borderRadius: 10, backgroundColor: colors.brand },
