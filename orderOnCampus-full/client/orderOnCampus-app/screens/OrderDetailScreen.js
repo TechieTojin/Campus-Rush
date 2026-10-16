@@ -6,6 +6,8 @@ import { Text } from '../components/ui/text';
 import { EmptyState, ErrorState, Skeleton } from '../components/ui/feedback';
 import { FoodArt, ScreenHeader } from '../components/ui/food';
 import { Button, Card, Divider } from '../components/ui/primitives';
+import { EstimateCard } from '../components/ui/pickup';
+import { SelectionSummary } from '../components/ui/options';
 import { ACTIVE_STATUSES, colors, ORDER_STATUS, PROGRESS_STEPS, radius, space, type } from '../constants/theme';
 import useCart from '../hooks/useCart';
 import { useCatalog } from '../hooks/useCatalog';
@@ -149,6 +151,9 @@ export default function OrderDetailScreen() {
           </View>
         ) : <View style={{ height: space.md }} />}
 
+        {/* An estimate only while the food is still being made; once Ready the real state speaks. */}
+        <EstimateCard order={order} style={{ marginBottom: space.md }} />
+
         {!cancelled && order.status !== 'Completed' ? (
           <View style={[styles.codeCard, ready && { backgroundColor: colors.success, borderColor: colors.success }]}>
             <Text style={[type.overline, ready && { color: 'rgba(255,255,255,0.8)' }]}>{ready ? 'Show this at the counter' : 'Your pickup code'}</Text>
@@ -156,6 +161,15 @@ export default function OrderDetailScreen() {
             <Text style={[type.small, ready && { color: 'rgba(255,255,255,0.85)' }, { textAlign: 'center' }]}>
               {ready ? `Your food is waiting at ${order.canteen?.name || 'the canteen'}.` : 'You\'ll need this when you collect.'}
             </Text>
+            {ready ? (
+              <Button
+                title="Show pickup QR"
+                icon="maximize"
+                variant="light"
+                onPress={() => navigation.navigate('Pickup', { orderId: order._id, order })}
+                style={{ marginTop: space.md, alignSelf: 'stretch' }}
+              />
+            ) : null}
           </View>
         ) : null}
 
@@ -182,12 +196,16 @@ export default function OrderDetailScreen() {
 
         <Card style={{ marginBottom: space.md }}>
           <Text style={[type.h3, { marginBottom: space.sm }]}>Items</Text>
-          {lines.map(l => (
-            <View key={l._id} style={styles.line}>
+          {lines.map((l, i) => (
+            <View key={`${l._id}-${i}`} style={styles.line}>
               <FoodArt name={l.name} image={l.image} size={42} rounded={10} />
-              <Text style={[type.body, { flex: 1, marginHorizontal: space.sm }]} numberOfLines={2}>
-                <Text style={{ fontWeight: '800', color: colors.brand }}>{l.quantity}× </Text>{l.name}
-              </Text>
+              <View style={{ flex: 1, marginHorizontal: space.sm }}>
+                <Text style={type.body} numberOfLines={2}>
+                  <Text style={{ fontWeight: '800', color: colors.brand }}>{l.quantity}× </Text>{l.name}
+                </Text>
+                {/* The choices as they were when the order was placed, never today's menu. */}
+                <SelectionSummary selections={l.selections} instructions={l.instructions} style={{ marginTop: 2 }} />
+              </View>
               {l.price != null ? <Text style={type.bodyStrong}>{formatPrice(l.price * l.quantity)}</Text> : null}
             </View>
           ))}

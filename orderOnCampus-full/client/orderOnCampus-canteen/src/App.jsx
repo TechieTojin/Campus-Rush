@@ -13,6 +13,7 @@ import Dashboard from './pages/Dashboard';
 import Orders from './pages/Orders';
 import OrderPage from './pages/OrderPage';
 import LiveOrders from './pages/LiveOrders';
+import Pickup from './pages/Pickup';
 import Menu from './pages/Menu';
 import MenuItemForm from './pages/MenuItemForm';
 import Categories from './pages/Categories';
@@ -72,6 +73,7 @@ export default function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="live" element={<LiveOrders />} />
+        <Route path="pickup" element={<Pickup />} />
         <Route path="orders" element={<Orders />} />
         <Route path="orders/:orderId" element={<OrderPage />} />
         <Route path="menu" element={<Menu />} />

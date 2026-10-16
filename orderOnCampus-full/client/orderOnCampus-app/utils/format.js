@@ -59,11 +59,22 @@ export const orderLines = (order = {}) => {
   if (order.lineItems?.length) {
     const images = new Map((order.items || []).filter(i => i && i._id).map(i => [String(i._id), i.image]));
     return {
-      lines: order.lineItems.map(l => ({ _id: String(l.item), name: l.name, price: l.price, quantity: l.quantity, image: images.get(String(l.item)) })),
+      lines: order.lineItems.map(l => ({
+        _id: String(l.item),
+        name: l.name,
+        price: l.price,
+        quantity: l.quantity,
+        image: images.get(String(l.item)),
+        // Customisation snapshot (V4); empty on older orders.
+        selections: l.selections || [],
+        instructions: l.instructions || '',
+        basePrice: typeof l.basePrice === 'number' ? l.basePrice : l.price,
+        addonsTotal: typeof l.addonsTotal === 'number' ? l.addonsTotal : 0,
+      })),
       snapshot: true,
     };
   }
-  return { lines: groupOrderItems(order.items), snapshot: false };
+  return { lines: groupOrderItems(order.items).map(l => ({ ...l, selections: [], instructions: '' })), snapshot: false };
 };
 
 export const summarizeOrder = (order) => orderLines(order).lines.map(i => `${i.quantity}× ${i.name}`).join(', ');

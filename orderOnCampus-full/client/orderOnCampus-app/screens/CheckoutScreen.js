@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { Banner } from '../components/ui/feedback';
 import { DietMark, ScreenHeader } from '../components/ui/food';
+import { SelectionSummary } from '../components/ui/options';
 import { Button, Card, Divider } from '../components/ui/primitives';
 import { colors, radius, shadow, space, type } from '../constants/theme';
 import { useAppConfig } from '../hooks/useAppConfig';
@@ -63,8 +64,15 @@ export default function CheckoutScreen() {
     setError(null);
     const startedAt = Date.now();
     try {
-      const itemIds = items.flatMap(i => Array(i.quantity).fill(i._id));
-      const order = await placeOrder({ canteenId: canteen._id, itemIds });
+      // One entry per configured line. Only the option identifiers are sent — never a price;
+      // the server re-prices every line from its own menu data.
+      const lines = items.map(i => ({
+        item: i._id,
+        quantity: i.quantity,
+        selections: (i.selections || []).map(s => ({ group: s.group, option: s.option })),
+        instructions: i.instructions || '',
+      }));
+      const order = await placeOrder({ canteenId: canteen._id, lines });
       succeed(order);
     } catch (e) {
       // The request may have reached the server before the connection dropped: look before retrying,
@@ -123,12 +131,15 @@ export default function CheckoutScreen() {
         <Text style={styles.section}>Your order</Text>
         <Card style={{ marginBottom: space.lg }}>
           {items.map((i, idx) => (
-            <View key={i._id}>
+            <View key={i.lineKey}>
               <View style={styles.line}>
                 <Text style={styles.qty}>{i.quantity}×</Text>
                 <DietMark dietary={i.dietary} size={12} />
-                <Text style={[type.body, { flex: 1, marginLeft: i.dietary ? 6 : 0 }, i.available === false && { color: colors.faint, textDecorationLine: 'line-through' }]} numberOfLines={2}>{i.name}</Text>
-                <Text style={type.bodyStrong}>{formatPrice(i.price * i.quantity)}</Text>
+                <View style={{ flex: 1, marginLeft: i.dietary ? 6 : 0 }}>
+                  <Text style={[type.body, i.available === false && { color: colors.faint, textDecorationLine: 'line-through' }]} numberOfLines={2}>{i.name}</Text>
+                  <SelectionSummary selections={i.selections} instructions={i.instructions} style={{ marginTop: 1 }} />
+                </View>
+                <Text style={type.bodyStrong}>{formatPrice((i.unitPrice ?? i.price) * i.quantity)}</Text>
               </View>
               {idx < items.length - 1 ? <Divider /> : null}
             </View>

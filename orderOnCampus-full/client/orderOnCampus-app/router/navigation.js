@@ -16,6 +16,7 @@ import HelpScreen from '../screens/HelpScreen';
 import LoginScreen from '../screens/LoginScreen';
 import OrderDetailScreen from '../screens/OrderDetailScreen';
 import OrderSuccessScreen from '../screens/OrderSuccessScreen';
+import PickupScreen from '../screens/PickupScreen';
 import PrivacyScreen from '../screens/PrivacyScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import SearchScreen from '../screens/SearchScreen';
@@ -82,6 +83,7 @@ export default function Navigation() {
         <Stack.Screen name="Checkout" component={CheckoutScreen} />
         <Stack.Screen name="OrderSuccess" component={OrderSuccessScreen} options={{ animation: 'fade', gestureEnabled: false, ...LIGHT_BAR }} />
         <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
+        <Stack.Screen name="Pickup" component={PickupScreen} options={{ animation: 'slide_from_bottom', ...LIGHT_BAR }} />
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
         <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
         <Stack.Screen name="Help" component={HelpScreen} />

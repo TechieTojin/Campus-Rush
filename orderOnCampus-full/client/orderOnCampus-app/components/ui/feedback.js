@@ -93,10 +93,12 @@ export function Skeleton({ width = '100%', height = 16, radius: r = 10, style })
 }
 
 // Opaque strip behind the translucent Android status bar so scrolled content never collides with the clock.
-export function StatusBarScrim({ visible = true }) {
+// `extra` extends the strip below the status bar, for screens that float a control there and
+// would otherwise let content scroll visibly underneath it.
+export function StatusBarScrim({ visible = true, extra = 0 }) {
   const insets = useSafeAreaInsets();
   if (!visible) return null;
-  return <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: colors.bg, zIndex: 10, elevation: 30, shadowColor: 'transparent' }} />;
+  return <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top + extra, backgroundColor: colors.bg, zIndex: 10, elevation: 30, shadowColor: 'transparent' }} />;
 }
 
 let toastListener = null;

@@ -6,6 +6,7 @@ import { Text } from '../components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BrandBackdrop } from '../components/ui/brand';
 import { Button, Divider } from '../components/ui/primitives';
+import { EstimateCard } from '../components/ui/pickup';
 import { colors, radius, shadow, space, type } from '../constants/theme';
 import { formatPrice, orderLines, orderRef } from '../utils/format';
 
@@ -53,6 +54,8 @@ export default function OrderSuccessScreen() {
         <Text style={[type.overline, { textAlign: 'center' }]}>Your pickup code</Text>
         <Text style={styles.code} accessibilityLabel={`Pickup code ${code.split('').join(' ')}`}>{code}</Text>
         <Text style={[type.small, { textAlign: 'center' }]}>Show this at the counter when your order is ready</Text>
+        {/* What the canteen expects, set the moment the order was accepted. */}
+        <EstimateCard order={order} style={{ marginTop: space.md }} />
         <View style={styles.perforation}>
           <View style={[styles.notch, { left: -space.lg - 10 }]} />
           <View style={styles.dash} />

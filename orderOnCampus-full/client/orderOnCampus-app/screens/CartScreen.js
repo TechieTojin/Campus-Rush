@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import { Banner, EmptyState } from '../components/ui/feedback';
 import { DietMark, FoodArt, QuantityStepper, ScreenHeader } from '../components/ui/food';
+import { SelectionSummary } from '../components/ui/options';
 import { animateLayout, Button, Card, Divider, IconButton, PressableScale } from '../components/ui/primitives';
 import { colors, radius, shadow, space, type } from '../constants/theme';
 import { useAppConfig } from '../hooks/useAppConfig';
@@ -94,7 +95,7 @@ export default function CartScreen() {
   const unavailable = items.filter(i => i.available === false);
   // The bill only counts what can actually be ordered right now.
   const orderable = items.filter(i => i.available !== false);
-  const billTotal = orderable.reduce((t, i) => t + i.price * i.quantity, 0);
+  const billTotal = orderable.reduce((t, i) => t + (i.unitPrice ?? i.price) * i.quantity, 0);
   const billCount = orderable.reduce((n, i) => n + i.quantity, 0);
   const closed = live ? live.openStatus === false || live.status === 'suspended' : false;
   const maintenance = !!config.maintenance?.enabled;
@@ -129,19 +130,33 @@ export default function CartScreen() {
         <Card style={{ paddingVertical: space.xs, marginBottom: space.md }}>
           {items.map((item, idx) => {
             const out = item.available === false;
+            const unit = item.unitPrice ?? item.price;
+            const customised = (item.selections || []).length > 0 || !!item.instructions;
+            // A line is identified by its configuration, so the same dish can appear twice.
             return (
-              <View key={item._id} style={[styles.item, idx < items.length - 1 && styles.itemBorder]}>
+              <View key={item.lineKey} style={[styles.item, idx < items.length - 1 && styles.itemBorder]}>
                 <FoodArt name={item.name} image={item.image} size={60} rounded={radius.sm} dimmed={out} />
                 <View style={{ flex: 1, marginLeft: space.sm }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <DietMark dietary={item.dietary} size={12} />
                     <Text style={[type.bodyStrong, { flex: 1, marginLeft: item.dietary ? 6 : 0 }, out && { color: colors.muted }]} numberOfLines={2}>{item.name}</Text>
                   </View>
-                  <Text style={type.small}>{formatPrice(item.price)} each</Text>
+                  <SelectionSummary selections={item.selections} instructions={item.instructions} style={{ marginTop: 2 }} />
+                  <Text style={[type.small, { marginTop: 2 }]}>{formatPrice(unit)} each</Text>
                   {out ? (
-                    <PressableScale onPress={() => remove(item._id)} hitSlop={8} style={styles.outBtn} accessibilityLabel={`Remove ${item.name}, no longer available`}>
+                    <PressableScale onPress={() => remove(item.lineKey)} hitSlop={8} style={styles.outBtn} accessibilityLabel={`Remove ${item.name}, no longer available`}>
                       <Feather name="x-circle" size={13} color={colors.danger} />
                       <Text style={[type.caption, { color: colors.danger, marginLeft: 4 }]}>Sold out · Remove</Text>
+                    </PressableScale>
+                  ) : customised ? (
+                    <PressableScale
+                      onPress={() => navigation.navigate('FoodDetail', { itemId: item._id, canteenId: canteen._id, lineKey: item.lineKey, canteen })}
+                      hitSlop={8}
+                      style={styles.editBtn}
+                      accessibilityLabel={`Change your choices for ${item.name}`}
+                    >
+                      <Feather name="edit-2" size={12} color={colors.brand} />
+                      <Text style={[type.caption, { color: colors.brand, marginLeft: 4 }]}>Change choices</Text>
                     </PressableScale>
                   ) : null}
                   {/* Stepper and line total sit under the name so long dish names get the full width. */}
@@ -152,11 +167,11 @@ export default function CartScreen() {
                         name={item.name}
                         quantity={item.quantity}
                         maxReached={item.quantity >= maxQty || count >= maxItems}
-                        onIncrease={() => update(item._id, item.quantity + 1)}
-                        onDecrease={() => update(item._id, item.quantity - 1)}
+                        onIncrease={() => update(item.lineKey, item.quantity + 1)}
+                        onDecrease={() => update(item.lineKey, item.quantity - 1)}
                       />
                     )}
-                    <Text style={[type.price, out && { color: colors.faint, textDecorationLine: 'line-through' }]}>{formatPrice(item.price * item.quantity)}</Text>
+                    <Text style={[type.price, out && { color: colors.faint, textDecorationLine: 'line-through' }]}>{formatPrice(unit * item.quantity)}</Text>
                   </View>
                 </View>
               </View>
@@ -191,6 +206,7 @@ const styles = StyleSheet.create({
   addMore: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.brandTint, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7 },
   item: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: space.sm },
   itemFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.xs },
+  editBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: 4, paddingVertical: 2 },
   itemBorder: { borderBottomWidth: 1, borderBottomColor: colors.divider },
   outBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: 4 },
   row: { flexDirection: 'row', alignItems: 'center', marginVertical: 4 },

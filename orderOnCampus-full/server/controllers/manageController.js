@@ -7,6 +7,7 @@ const Canteen = require('../model/canteen.model');
 const Order = require('../model/order.model');
 const User = require('../model/user.model');
 const Activity = require('../model/activity.model');
+const Customisation = require('../lib/customisation');
 const { isValidImagePath } = require('./uploadController');
 
 const TZ = 'Asia/Kolkata';
@@ -37,7 +38,23 @@ const ownsItem = (canteen, itemId) => OBJECT_ID.test(itemId || '') && menuIds(ca
 // because those prices are today's menu prices, not what was charged.
 const orderLines = (order) => {
     if (order.lineItems && order.lineItems.length) {
-        return { lines: order.lineItems.map(l => ({ item: l.item, name: l.name, price: l.price, quantity: l.quantity, category: l.category || '' })), legacy: false };
+        return {
+            lines: order.lineItems.map(l => ({
+                item: l.item,
+                name: l.name,
+                price: l.price,
+                quantity: l.quantity,
+                category: l.category || '',
+                // Customisation snapshot (V4). Absent on orders placed before it existed, which
+                // is why every field is defaulted rather than assumed.
+                basePrice: typeof l.basePrice === 'number' ? l.basePrice : l.price,
+                addonsTotal: typeof l.addonsTotal === 'number' ? l.addonsTotal : 0,
+                lineTotal: typeof l.lineTotal === 'number' ? l.lineTotal : (l.price || 0) * (l.quantity || 0),
+                selections: (l.selections || []).map(s => ({ groupName: s.groupName, label: s.label, priceDelta: s.priceDelta })),
+                instructions: l.instructions || '',
+            })),
+            legacy: false,
+        };
     }
     const map = new Map();
     (order.items || []).forEach((it) => {
@@ -66,6 +83,17 @@ const shapeOrder = (o) => {
         paymentMethod: o.paymentMethod || 'counter',
         paymentStatus: o.paymentStatus || 'unpaid',
         paidAt: o.paidAt || null,
+        // Pickup timing (V4). Estimates and actuals are kept apart on purpose.
+        estimatedReadyAt: o.estimatedReadyAt || null,
+        estimateMinutes: typeof o.estimateMinutes === 'number' ? o.estimateMinutes : null,
+        estimateSource: o.estimateSource || 'auto',
+        prepDelayMinutes: o.prepDelayMinutes || 0,
+        readyAt: o.readyAt || null,
+        collectedAt: o.collectedAt || null,
+        // How the order was handed over, once it has been.
+        pickupMethod: (o.pickup && o.pickup.method) || null,
+        // Any note the student left, surfaced per line in `lines`; this flags that one exists.
+        hasInstructions: (o.lineItems || []).some(l => l.instructions),
     };
 };
 
@@ -73,7 +101,7 @@ const populateOrder = (q) => q.populate('user', 'name').populate('items', 'name 
 
 // ---------------------------------------------------------------- canteen profile
 
-const PROFILE_FIELDS = ['name', 'location', 'canteenDescription', 'category', 'phone', 'contactEmail', 'openingTime', 'closingTime', 'pickupInstructions', 'logo', 'coverImage', 'openStatus'];
+const PROFILE_FIELDS = ['name', 'location', 'canteenDescription', 'category', 'phone', 'contactEmail', 'openingTime', 'closingTime', 'pickupInstructions', 'logo', 'coverImage', 'openStatus', 'defaultPrepTime'];
 
 const shapeCanteen = (c) => {
     const o = c.toObject();
@@ -119,6 +147,12 @@ exports.updateCanteen = async (req, res) => {
     if (b.openStatus !== undefined) {
         if (typeof b.openStatus !== 'boolean') return fail(res, 400, 'openStatus must be true or false');
         update.openStatus = b.openStatus;
+    }
+    // Fallback preparation time used by the pickup estimate for dishes with no time of their own.
+    if (b.defaultPrepTime !== undefined) {
+        const n = Number(b.defaultPrepTime);
+        if (!Number.isInteger(n) || n < 1 || n > 240) return fail(res, 400, 'Default preparation time must be between 1 and 240 minutes');
+        update.defaultPrepTime = n;
     }
     if (!Object.keys(update).length) return fail(res, 400, 'Nothing to update');
     if (update.openStatus === true && canteen.status && canteen.status !== 'active') {
@@ -190,6 +224,13 @@ const parseItem = (b, canteen, partial) => {
     if (b.dietary !== undefined) {
         if (!MenuItem.DIETARY.includes(b.dietary)) return { error: 'Unknown dietary option' };
         data.dietary = b.dietary;
+    }
+    if (b.customisationGroups !== undefined) {
+        // Option keys, limits and prices are validated in lib/customisation.js — the same module
+        // that prices a student's selections, so the two can never drift apart.
+        const parsed = Customisation.parseGroups(b.customisationGroups);
+        if (parsed.error) return { error: parsed.error };
+        data.customisationGroups = parsed.data;
     }
     return { data };
 };

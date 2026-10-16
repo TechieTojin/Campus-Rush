@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   FiActivity, FiBarChart2, FiBell, FiBookOpen, FiChevronDown, FiClipboard, FiGrid, FiHelpCircle, FiLayers,
-  FiLogOut, FiMenu, FiPlusCircle, FiSettings, FiShoppingBag, FiToggleRight, FiUsers, FiWifiOff, FiX, FiHome,
+  FiLogOut, FiMaximize, FiMenu, FiPlusCircle, FiSettings, FiShoppingBag, FiToggleRight, FiUsers, FiWifiOff, FiX, FiHome,
 } from 'react-icons/fi';
 import { api, errorMessage } from '../../lib/api';
 import { usePolling, useOnline } from '../../lib/hooks';
@@ -18,6 +18,7 @@ const NAV = [
   { group: 'Operations', items: [
     { to: '/dashboard', label: 'Dashboard', icon: FiGrid },
     { to: '/live', label: 'Live orders', icon: FiActivity, badge: 'waiting' },
+    { to: '/pickup', label: 'Pickup scanner', icon: FiMaximize },
     { to: '/orders', label: 'All orders', icon: FiClipboard },
     { to: '/notifications', label: 'Notifications', icon: FiBell, badge: 'unread' },
   ] },

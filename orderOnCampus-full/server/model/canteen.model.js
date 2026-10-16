@@ -25,6 +25,9 @@ const canteenSchema = new mongoose.Schema({
     openingTime: { type: String, default: '' },
     closingTime: { type: String, default: '' },
     pickupInstructions: { type: String, default: '' },
+    // Fallback preparation time (minutes) for dishes that don't set their own, used by the
+    // pickup estimate. See lib/pickupEstimate.js.
+    defaultPrepTime: { type: Number, min: 1, max: 240, default: 10 },
     // staff: { type: mongoose.Schema.Types.ObjectId, ref: 'Staff', required: true } // Reference to staff member who manages the canteen
 });
 

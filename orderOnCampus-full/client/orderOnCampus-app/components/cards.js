@@ -9,8 +9,10 @@ import { useAppConfig } from '../hooks/useAppConfig';
 import useCart from '../hooks/useCart';
 import { isOpen } from '../hooks/useCatalog';
 import { useFavorite } from '../hooks/useSession';
-import { selectCartCanteen, selectCartCount, selectCartTotal, selectItemQuantity } from '../slices/CartSlice';
+import { selectCartCanteen, selectCartCount, selectCartItems, selectCartTotal, selectItemQuantity } from '../slices/CartSlice';
 import { formatDate, formatPrice, openingHours, orderLines, orderRef, summarizeOrder } from '../utils/format';
+import { hasCustomisation, hasRequiredChoices } from '../utils/customisation';
+import { EstimateLine } from './ui/pickup';
 import { CanteenCover, DietMark, FoodArt, PrepTime, QuantityStepper } from './ui/food';
 import { IconButton, PressableScale, StatusBadge, Tag } from './ui/primitives';
 import { Text } from './ui/text';
@@ -19,13 +21,32 @@ import { Text } from './ui/text';
 export const CART_BAR_SPACE = 104;
 
 function useItemCart(item, canteen) {
+  const navigation = useNavigation();
+  const lines = useSelector(selectCartItems);
   const quantity = useSelector(selectItemQuantity(item._id));
   const { add, update, maxQty } = useCart();
+  // A dish with required choices can't be added from a card — there is nothing to add until the
+  // student has picked a size (or whatever the canteen asks for), so the card opens the dish.
+  const needsChoice = hasRequiredChoices(item);
+  const myLines = lines.filter(l => l._id === item._id);
+  const openDetail = () => navigation.navigate('FoodDetail', { itemId: item._id, canteenId: canteen._id, item, canteen });
+
   return {
     quantity,
+    needsChoice,
+    // More than one configuration of the same dish: the stepper would be ambiguous, so the card
+    // shows the total and sends the student to the dish to change anything.
+    multiple: myLines.length > 1,
     maxReached: quantity >= maxQty,
-    increase: () => (quantity ? update(item._id, quantity + 1) : add(item, canteen)),
-    decrease: () => update(item._id, quantity - 1),
+    increase: () => {
+      if (needsChoice || myLines.length > 1) return openDetail();
+      if (quantity) return update(myLines[0].lineKey, quantity + 1);
+      return add(item, canteen);
+    },
+    decrease: () => {
+      if (myLines.length !== 1) return openDetail();
+      update(myLines[0].lineKey, quantity - 1);
+    },
   };
 }
 
@@ -50,7 +71,11 @@ export function DishRow({ item, canteen, closed, last }) {
           </View>
         ) : null}
         <Text style={[type.h3, !item.available && { color: colors.muted }]} numberOfLines={2}>{item.name}</Text>
-        <Text style={[type.price, { marginTop: 4 }]}>{formatPrice(item.price)}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 4 }}>
+          {/* "from" signals that choices can add to the price, so the figure is never misleading. */}
+          {hasCustomisation(item) ? <Text style={[type.small, { marginRight: 4 }]}>from</Text> : null}
+          <Text style={type.price}>{formatPrice(item.price)}</Text>
+        </View>
         {item.description ? <Text style={[type.small, { marginTop: 5 }]} numberOfLines={2}>{item.description}</Text> : null}
         {!item.available ? (
           <View style={styles.soldOut}><Text style={[type.caption, { color: colors.danger }]}>Sold out for now</Text></View>
@@ -245,8 +270,11 @@ export function OrderProgressBar({ status, light }) {
 
 // Hero card for an order still in progress (Home and Orders).
 export function ActiveOrderCard({ order, onPress, style }) {
+  const navigation = useNavigation();
   const meta = ORDER_STATUS[order.status];
   const ready = order.status === 'Ready';
+  // "Collect" should do exactly that: a ready order opens the pickup code straight away.
+  const go = () => (ready ? navigation.navigate('Pickup', { orderId: order._id, order }) : onPress?.());
   const glow = useRef(new Animated.Value(0)).current;
   const { lines } = orderLines(order);
   const count = lines.reduce((n, l) => n + l.quantity, 0);
@@ -260,7 +288,7 @@ export function ActiveOrderCard({ order, onPress, style }) {
     return () => loop.stop();
   }, [ready, glow]);
   return (
-    <PressableScale onPress={onPress} scaleTo={0.985} accessibilityLabel={`${meta.title}. Order ${orderRef(order._id)} from ${order.canteen?.name || 'canteen'}. Tap to track.`}
+    <PressableScale onPress={go} scaleTo={0.985} accessibilityLabel={`${meta.title}. Order ${orderRef(order._id)} from ${order.canteen?.name || 'canteen'}. ${ready ? 'Tap to show your pickup code.' : 'Tap to track.'}`}
       style={[styles.active, ready && { backgroundColor: colors.success }, style]}>
       <View style={styles.activeArc} />
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -273,12 +301,13 @@ export function ActiveOrderCard({ order, onPress, style }) {
           <Text style={styles.activeTitle} numberOfLines={1}>{meta.title}</Text>
         </View>
         <View style={styles.activeCta}>
-          <Text style={styles.activeCtaText}>{ready ? 'Collect' : 'Track'}</Text>
+          <Text style={styles.activeCtaText}>{ready ? 'Show code' : 'Track'}</Text>
           <Feather name="chevron-right" size={16} color={colors.ink} />
         </View>
       </View>
       <View style={{ marginTop: space.md }}><OrderProgressBar status={order.status} light /></View>
       <Text style={styles.activeHint} numberOfLines={1}>{order.canteen?.name || 'Your canteen'} · {count} item{count === 1 ? '' : 's'} · {meta.hint}</Text>
+      <EstimateLine order={order} tone="onDark" style={{ marginTop: 4 }} />
     </PressableScale>
   );
 }

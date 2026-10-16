@@ -105,7 +105,7 @@ export default function LiveMonitor() {
                         <span className={`text-[12px] font-semibold flex items-center gap-1 ${late ? 'text-warning' : 'text-muted'}`}>{late ? <FiAlertTriangle className="h-3.5 w-3.5" aria-hidden /> : <FiClock className="h-3.5 w-3.5" aria-hidden />}{o.status === 'Completed' ? formatTime(o.timestamp) : waited < 1 ? 'Just now' : `${waited} min`}</span>
                       </div>
                       <p className="text-[12.5px] text-muted flex items-center gap-1 mt-0.5"><FiHome className="h-3 w-3" aria-hidden />{o.canteen.name} · {o.customer.name}</p>
-                      <ul className="mt-2 space-y-0.5 text-[13.5px]">{o.lines.map((l) => <li key={String(l.item)} className="text-ink"><span className="font-bold text-brand tabular mr-1.5">{l.quantity}×</span>{l.name}</li>)}</ul>
+                      <ul className="mt-2 space-y-0.5 text-[13.5px]">{o.lines.map((l, i) => <li key={`${String(l.item)}-${i}`} className="text-ink"><span className="font-bold text-brand tabular mr-1.5">{l.quantity}×</span>{l.name}</li>)}</ul>
                       <div className="mt-2 flex items-center justify-between"><span className="font-extrabold tabular text-ink">{money(o.totalPrice)}</span><PaymentBadge order={o} /></div>
                     </button>
                   );

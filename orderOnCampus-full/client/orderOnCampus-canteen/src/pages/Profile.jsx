@@ -12,8 +12,8 @@ import { useSession } from '../lib/sessionContext';
 import { useToast } from '../components/ui/useToast';
 import { CANTEEN_TYPES } from '../lib/constants';
 
-const FIELDS = ['name', 'location', 'canteenDescription', 'category', 'phone', 'contactEmail', 'openingTime', 'closingTime', 'pickupInstructions', 'logo', 'coverImage', 'openStatus'];
-const pick = (c) => Object.fromEntries(FIELDS.map((f) => [f, f === 'openStatus' ? c[f] !== false : c[f] || '']));
+const FIELDS = ['name', 'location', 'canteenDescription', 'category', 'phone', 'contactEmail', 'openingTime', 'closingTime', 'pickupInstructions', 'logo', 'coverImage', 'openStatus', 'defaultPrepTime'];
+const pick = (c) => Object.fromEntries(FIELDS.map((f) => [f, f === 'openStatus' ? c[f] !== false : f === 'defaultPrepTime' ? String(c[f] || 10) : c[f] || '']));
 
 const validate = (f) => {
   const e = {};
@@ -23,6 +23,8 @@ const validate = (f) => {
   if (f.phone && !/^[+\d][\d\s-]{6,18}$/.test(f.phone.trim())) e.phone = 'Enter a valid phone number';
   if (f.contactEmail && !/^[\w.+-]+@[a-zA-Z\d.-]+\.[a-zA-Z]{2,}$/.test(f.contactEmail.trim())) e.contactEmail = 'Enter a valid email';
   if (!!f.openingTime !== !!f.closingTime) e.closingTime = 'Set both opening and closing time, or neither';
+  const prep = Number(f.defaultPrepTime);
+  if (!Number.isInteger(prep) || prep < 1 || prep > 240) e.defaultPrepTime = 'Whole minutes between 1 and 240';
   return e;
 };
 
@@ -110,6 +112,18 @@ export default function Profile() {
               </div>
               <p className="text-[13px] text-muted -mt-2 flex gap-1.5"><FiClock className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />Hours are shown to students for information. Ordering is controlled only by the “Accepting orders” switch — remember to pause it when you close.</p>
               <TextArea label="Pickup instructions" optional value={form.pickupInstructions} onChange={set('pickupInstructions')} maxLength={300} rows={2} placeholder="e.g. Collect from the second counter. Show your order number." />
+              <TextInput
+                label="Typical preparation time"
+                type="number"
+                min="1"
+                max="240"
+                suffix="minutes"
+                className="max-w-[220px]"
+                value={form.defaultPrepTime}
+                onChange={set('defaultPrepTime')}
+                error={err('defaultPrepTime')}
+                hint="Used to estimate pickup times for dishes without their own time"
+              />
             </Card>
             <Card className="p-5 sm:p-6 space-y-5">
               <h2 className="font-bold text-[16px]">Contact</h2>
