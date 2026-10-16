@@ -38,8 +38,10 @@ function OrderCard({ order, actions, now, onOpen }) {
         </div>
       </div>
       <ul className="mt-3 space-y-1 border-t border-dashed border-line pt-3">
-        {order.lines.map((l) => (
-          <li key={String(l.item)} className="flex gap-2 text-[14px]">
+        {order.lines.map((l, i) => (
+          // One dish can appear as several lines now (different choices), so the dish id alone
+          // is not unique within an order.
+          <li key={`${String(l.item)}-${i}`} className="flex gap-2 text-[14px]">
             <span className="font-extrabold text-brand-700 tabular w-7 shrink-0">{l.quantity}×</span>
             <span className="text-ink font-medium">{l.name}</span>
           </li>

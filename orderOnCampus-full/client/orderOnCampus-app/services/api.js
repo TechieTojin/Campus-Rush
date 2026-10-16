@@ -94,9 +94,16 @@ export const getPopularItems = async (canteenId) =>
 export const addFavorite = (canteenId) => http.post('/users/set-fav', { canteenId });
 export const removeFavorite = (canteenId) => http.delete(`/users/favoriteCanteens/${canteenId}`);
 
-export const placeOrder = async ({ canteenId, itemIds }) =>
-  (await http.post('/users/place-order', { canteen: canteenId, items: itemIds })).data;
+// `lines` carries the configured cart ([{ item, quantity, selections, instructions }]); the older
+// flat `itemIds` form is still accepted by the server and kept here for completeness.
+export const placeOrder = async ({ canteenId, lines, itemIds }) =>
+  (await http.post('/users/place-order', lines
+    ? { canteen: canteenId, lines }
+    : { canteen: canteenId, items: itemIds })).data;
 export const getMyOrders = async () => (await http.get('/users/me/orders')).data.data || [];
+// Short-lived QR pickup credential for one of the student's own orders, issued only while Ready.
+export const getPickupToken = async (orderId) =>
+  (await http.post(`/users/orders/${orderId}/pickup-token`, {})).data.data;
 
 // Admin-managed content and configuration
 export const getAppConfig = async () => (await http.get('/app/config', { skipAuth: true })).data.data;

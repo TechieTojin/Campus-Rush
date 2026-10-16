@@ -61,5 +61,9 @@ export default function useOrderActions(onChanged) {
     />
   );
 
-  return { advance, setPaid, busy, cancelDialog };
+  // Lets a panel that mutates an order another way (e.g. the pickup estimate) ask the host
+  // screen to reload, so what is on screen matches what the server now holds.
+  const refresh = useCallback(() => onChanged?.(null, 'refresh'), [onChanged]);
+
+  return { advance, setPaid, busy, cancelDialog, refresh };
 }

@@ -1,6 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import React, { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../components/ui/text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Banner } from '../components/ui/feedback';
 import { TextField } from '../components/ui/forms';
@@ -51,7 +52,7 @@ export default function RegisterScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.brand }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" bounces={false}>
-        <AuthHero title="Create your account" subtitle="Takes less than a minute." compact />
+        <AuthHero kicker="JOIN CAMPUS RUSH" title="Create your account" subtitle="Takes less than a minute." compact />
         <IconButton icon="arrow-left" tone="glass" onPress={() => navigation.goBack()} accessibilityLabel="Go back" style={[styles.back, { top: insets.top + 8 }]} />
         <View style={[styles.sheet, { paddingBottom: insets.bottom + space.xl }]}>
           <Banner message={formError} style={{ marginBottom: space.md }} />

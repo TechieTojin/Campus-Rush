@@ -14,9 +14,11 @@ import { useSession } from '../lib/sessionContext';
 import { useToast } from '../components/ui/useToast';
 import { DIETARY } from '../lib/constants';
 import ManagerOnly from '../components/ManagerOnly';
+import CustomisationEditor, { CustomisationPreview } from '../components/CustomisationEditor';
+import { groupsFromItem, groupsToBody, validateGroups } from '../lib/customisation';
 
 const FIX_FIELDS = 'Fix the highlighted fields and try again.';
-const EMPTY = { name: '', description: '', price: '', category: '', image: '', available: true, prepTime: '', dietary: '' };
+const EMPTY = { name: '', description: '', price: '', category: '', image: '', available: true, prepTime: '', dietary: '', customisationGroups: [] };
 
 const validate = (f) => {
   const e = {};
@@ -30,6 +32,9 @@ const validate = (f) => {
   else if (Math.abs(Math.round(price * 100) - price * 100) > 1e-6) e.price = 'Use at most 2 decimal places';
   if (f.prepTime !== '' && (!Number.isInteger(Number(f.prepTime)) || Number(f.prepTime) < 1 || Number(f.prepTime) > 240)) e.prepTime = 'Whole minutes between 1 and 240';
   if (f.description.length > 500) e.description = 'Keep the description under 500 characters';
+  // Option groups are checked by the same rules the server applies, so nothing is a surprise.
+  const groupErrors = validateGroups(f.customisationGroups || []);
+  if (Object.keys(groupErrors).length) e.customisation = 'Fix the choices below';
   return e;
 };
 
@@ -42,6 +47,7 @@ const toBody = (f) => ({
   available: f.available,
   prepTime: f.prepTime === '' ? null : Number(f.prepTime),
   dietary: f.dietary,
+  customisationGroups: groupsToBody(f.customisationGroups || []),
 });
 
 export default function MenuItemForm() {
@@ -74,7 +80,7 @@ export default function MenuItemForm() {
         if (!alive) return;
         setCategories(menu.categories || []);
         const initial = item
-          ? { name: item.name, description: item.description || '', price: String(item.price), category: item.category || '', image: item.image || '', available: item.available !== false, prepTime: item.prepTime ? String(item.prepTime) : '', dietary: item.dietary || '' }
+          ? { name: item.name, description: item.description || '', price: String(item.price), category: item.category || '', image: item.image || '', available: item.available !== false, prepTime: item.prepTime ? String(item.prepTime) : '', dietary: item.dietary || '', customisationGroups: groupsFromItem(item) }
           : EMPTY;
         setForm(initial);
         setOriginal(initial);
@@ -178,6 +184,23 @@ export default function MenuItemForm() {
               </div>
             </Card>
 
+            <Card className="p-5 sm:p-6 space-y-4">
+              <div>
+                <h2 className="font-bold text-[16px]">Choices &amp; add-ons</h2>
+                <p className="text-[13px] text-muted mt-1">
+                  Sizes, spice levels, toppings — anything a student picks when ordering this dish.
+                  Options can add to the price. Past orders always keep the choices and prices they were placed with.
+                </p>
+              </div>
+              {show('customisation') ? <Banner tone="danger">{show('customisation')}</Banner> : null}
+              <CustomisationEditor
+                groups={form.customisationGroups}
+                onChange={set('customisationGroups')}
+                errors={validateGroups(form.customisationGroups || [])}
+                showErrors={!!touched.all || !!touched.customisation}
+              />
+            </Card>
+
             <Card className="p-5 sm:p-6">
               <Toggle
                 checked={form.available}
@@ -206,6 +229,9 @@ export default function MenuItemForm() {
                 </div>
               </div>
               {form.category ? <p className="text-[12.5px] text-muted mt-2">Listed under <strong className="text-ink">{form.category}</strong></p> : null}
+              <div className="mt-3">
+                <CustomisationPreview groups={form.customisationGroups || []} basePrice={price} />
+              </div>
             </Card>
           </div>
         </div>

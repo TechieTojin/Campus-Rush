@@ -27,8 +27,10 @@ export function OrderLines({ order }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-divider">
-          {order.lines.map((l) => (
-            <tr key={String(l.item)}>
+          {order.lines.map((l, i) => (
+            // One dish can appear as several lines now (different choices), so the dish id alone
+            // is not unique within an order.
+            <tr key={`${String(l.item)}-${i}`}>
               <td className="py-2.5 pr-2 font-medium text-ink">{l.name}</td>
               <td className="py-2.5 text-center tabular font-semibold">{l.quantity}</td>
               <td className="py-2.5 text-right tabular text-muted">{l.price != null ? money(l.price) : '—'}</td>

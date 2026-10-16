@@ -1,5 +1,6 @@
 import React from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { Text } from '../components/ui/text';
 import { ScreenHeader } from '../components/ui/food';
 import { Card } from '../components/ui/primitives';
 import { colors, space, type } from '../constants/theme';

@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../components/ui/text';
 import SupportContact from '../components/SupportContact';
 import { ScreenHeader } from '../components/ui/food';
 import { Card } from '../components/ui/primitives';

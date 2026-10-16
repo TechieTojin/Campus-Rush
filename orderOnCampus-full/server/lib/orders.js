@@ -22,11 +22,25 @@ async function transitionOrder(order, newStatus, { actor = 'staff', actorName, r
     if (!allowed.includes(newStatus)) {
         return { status: 400, message: `Cannot transition from '${order.status}' to '${newStatus}'. Allowed: ${allowed.length ? allowed.join(', ') : 'none (terminal status)'}` };
     }
+    // Record when things actually happened, alongside (never replacing) the estimate.
+    const now = new Date();
+    const stamps = {};
+    if (newStatus === 'Ready') stamps.readyAt = now;
+    if (newStatus === 'Completed') stamps.collectedAt = now;
+    // A cancelled or collected order can never present a pickup QR again.
+    const clearPickup = (newStatus === 'Cancelled' || newStatus === 'Completed')
+        ? { 'pickup.tokenId': '', 'pickup.tokenHash': '', 'pickup.expiresAt': '' }
+        : null;
+
     // Conditional on the status we validated against, so two people updating the same order
     // at once can't both succeed with a transition that is no longer valid.
     const updated = await Order.findOneAndUpdate(
         { _id: order._id, status: order.status },
-        { $set: { status: newStatus }, $push: { statusHistory: { status: newStatus, at: new Date() } } },
+        {
+            $set: { status: newStatus, ...stamps },
+            $push: { statusHistory: { status: newStatus, at: now } },
+            ...(clearPickup ? { $unset: clearPickup } : {}),
+        },
         { new: true, runValidators: true }
     );
     if (!updated) {

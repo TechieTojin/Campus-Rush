@@ -1,5 +1,6 @@
 import React from 'react';
-import { Linking, Text } from 'react-native';
+import { Linking } from 'react-native';
+import { Text } from './ui/text';
 import { space, type } from '../constants/theme';
 import { useAppConfig } from '../hooks/useAppConfig';
 import { Button } from './ui/primitives';

@@ -7,6 +7,8 @@ const Activity = require('../model/activity.model');
 const Setting = require('../model/setting.model');
 const realtime = require('../lib/realtime');
 const { emitOrder } = require('../lib/orders');
+const Customisation = require('../lib/customisation');
+const PickupEstimate = require('../lib/pickupEstimate');
 const secretKey = process.env.JWT_SECRET;
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '24h';
 
@@ -145,7 +147,13 @@ exports.getMyOrders = async (req, res) => {
         const orders = await Order.find({ user: req.user._id })
             .sort({ timestamp: -1 })
             .populate('canteen', 'name location openStatus pickupInstructions')
-            .populate('items', 'name price description image');
+            .populate('items', 'name price description image')
+            .lean();
+        // The pickup credential is never part of a list response — students fetch a fresh one
+        // from POST /users/orders/:orderId/pickup-token when they open the QR ticket. Stripped
+        // here rather than with a projection, because `pickup.tokenHash` is already excluded by
+        // `select: false` and the two would collide.
+        for (const order of orders) delete order.pickup;
         res.send({ status: "ok", data: orders });
     } catch (error) {
         console.error('Error fetching orders:', error);
@@ -205,9 +213,15 @@ exports.changePassword = async (req, res) => {
 exports.placeOrder = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { canteen: canteenId, items } = req.body;
+        // Two payload shapes are accepted:
+        //   legacy  { canteen, items: [itemId, itemId, ...] }   one entry per unit, no customisation
+        //   V4      { canteen, lines: [{ item, quantity, selections[], instructions }] }
+        // Older app builds keep working unchanged.
+        const { canteen: canteenId, items, lines: rawLines } = req.body;
 
-        if (!canteenId || !items || !Array.isArray(items) || items.length === 0) {
+        const hasLines = Array.isArray(rawLines) && rawLines.length > 0;
+        const hasItems = Array.isArray(items) && items.length > 0;
+        if (!canteenId || (!hasLines && !hasItems)) {
             return res.status(400).json({ message: 'canteen and items are required' });
         }
 
@@ -221,8 +235,53 @@ exports.placeOrder = async (req, res) => {
         }
         const maxItems = settings.ordering?.maxItemsPerOrder || 20;
         const maxQty = settings.ordering?.maxQuantityPerItem || 10;
-        if (items.length > maxItems) {
+        const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
+
+        // Normalise either payload into one list of { itemId, quantity, selections, instructions }.
+        const requested = [];
+        if (hasLines) {
+            if (rawLines.length > maxItems) {
+                return res.status(400).json({ message: `An order can have at most ${maxItems} items` });
+            }
+            for (const line of rawLines) {
+                if (!line || typeof line !== 'object') {
+                    return res.status(400).json({ message: 'Your cart contains an invalid item' });
+                }
+                const itemId = typeof line.item === 'string' ? line.item : '';
+                if (!OBJECT_ID.test(itemId)) {
+                    return res.status(400).json({ message: `Invalid item ID: ${itemId}` });
+                }
+                const quantity = typeof line.quantity === 'number' ? line.quantity : Number(line.quantity);
+                if (!Number.isInteger(quantity) || quantity < 1) {
+                    return res.status(400).json({ message: 'Every item needs a whole quantity of at least 1' });
+                }
+                requested.push({ itemId, quantity, selections: line.selections, instructions: line.instructions });
+            }
+        } else {
+            const counts = {};
+            for (const itemId of items) {
+                if (typeof itemId !== 'string' || !OBJECT_ID.test(itemId)) {
+                    return res.status(400).json({ message: `Invalid item ID: ${itemId}` });
+                }
+                counts[itemId] = (counts[itemId] || 0) + 1;
+            }
+            for (const [itemId, quantity] of Object.entries(counts)) {
+                requested.push({ itemId, quantity, selections: [], instructions: '' });
+            }
+        }
+
+        const totalUnits = requested.reduce((sum, line) => sum + line.quantity, 0);
+        if (totalUnits > maxItems) {
             return res.status(400).json({ message: `An order can have at most ${maxItems} items` });
+        }
+        // Per-dish limit is checked across the whole order, so the same dish configured two ways
+        // can't be used to order more of it than the platform allows.
+        const unitsPerItem = {};
+        for (const line of requested) {
+            unitsPerItem[line.itemId] = (unitsPerItem[line.itemId] || 0) + line.quantity;
+            if (unitsPerItem[line.itemId] > maxQty) {
+                return res.status(400).json({ message: `You can order at most ${maxQty} of the same item` });
+            }
         }
         const canteen = await Canteen.findById(canteenId).populate('menu');
         if (!canteen || canteen.status === 'pending' || canteen.status === 'rejected') {
@@ -235,47 +294,79 @@ exports.placeOrder = async (req, res) => {
             return res.status(400).json({ message: `${canteen.name} isn't taking orders right now` });
         }
 
-        const menuItemIds = canteen.menu.map(m => m._id.toString());
-        let totalPrice = 0;
+        const menuById = new Map(canteen.menu.map(m => [m._id.toString(), m]));
+        let totalPaise = 0;
         const validatedItems = [];
         const lineItems = [];
+        const seenLineKeys = new Set();
 
-        const itemCounts = {};
-        for (const itemId of items) {
-            if (typeof itemId !== 'string' || !itemId.match(/^[0-9a-fA-F]{24}$/)) {
-                return res.status(400).json({ message: `Invalid item ID: ${itemId}` });
+        for (const requestedLine of requested) {
+            const menuItem = menuById.get(requestedLine.itemId);
+            if (!menuItem) {
+                return res.status(400).json({ message: `Item ${requestedLine.itemId} does not belong to this canteen` });
             }
-            itemCounts[itemId] = (itemCounts[itemId] || 0) + 1;
-            if (itemCounts[itemId] > maxQty) {
-                return res.status(400).json({ message: `You can order at most ${maxQty} of the same item` });
-            }
-        }
-
-        for (const [itemId, qty] of Object.entries(itemCounts)) {
-            if (!menuItemIds.includes(itemId)) {
-                return res.status(400).json({ message: `Item ${itemId} does not belong to this canteen` });
-            }
-            const menuItem = canteen.menu.find(m => m._id.toString() === itemId);
             if (!menuItem.available) {
                 return res.status(400).json({ message: `Item ${menuItem.name} is not available` });
             }
-            totalPrice += menuItem.price * qty;
-            for (let i = 0; i < qty; i++) {
+            // Every add-on price comes from the stored menu item here — the client only ever
+            // sends which option keys it chose.
+            const priced = Customisation.priceSelections(menuItem, requestedLine.selections, requestedLine.instructions);
+            if (priced.error) {
+                return res.status(400).json({ message: priced.error, code: 'CUSTOMISATION' });
+            }
+            const { selections, addonsPaise, unitPricePaise, instructions } = priced.snapshot;
+
+            const lineKey = Customisation.lineKeyFor(menuItem._id, selections, instructions);
+            if (seenLineKeys.has(lineKey)) {
+                return res.status(400).json({ message: `"${menuItem.name}" appears twice with the same choices — combine them into one line` });
+            }
+            seenLineKeys.add(lineKey);
+
+            totalPaise += unitPricePaise * requestedLine.quantity;
+            for (let i = 0; i < requestedLine.quantity; i++) {
                 validatedItems.push(menuItem._id);
             }
-            lineItems.push({ item: menuItem._id, name: menuItem.name, price: menuItem.price, quantity: qty, category: menuItem.category || '' });
+            lineItems.push({
+                item: menuItem._id,
+                name: menuItem.name,
+                price: Customisation.toRupees(unitPricePaise),
+                quantity: requestedLine.quantity,
+                category: menuItem.category || '',
+                lineKey,
+                basePrice: menuItem.price,
+                selections,
+                addonsTotal: Customisation.toRupees(addonsPaise),
+                lineTotal: Customisation.toRupees(unitPricePaise * requestedLine.quantity),
+                instructions,
+            });
         }
+
+        // Pickup estimate. Counting the orders already in the kitchen is a cheap, honest signal;
+        // the calculation itself is in lib/pickupEstimate.js.
+        const queueAhead = await Order.countDocuments({ canteen: canteenId, status: { $in: ['Placed', 'Processing'] } });
+        const estimate = PickupEstimate.computeMinutes({
+            items: requested.map(r => menuById.get(r.itemId)),
+            units: totalUnits,
+            canteen,
+            queueAhead,
+        });
+        const placedAt = new Date();
 
         const newOrder = new Order({
             user: userId,
             canteen: canteenId,
             items: validatedItems,
             lineItems,
-            totalPrice: Math.round(totalPrice * 100) / 100,
+            totalPrice: Customisation.toRupees(totalPaise),
             status: 'Placed',
-            statusHistory: [{ status: 'Placed', at: new Date() }],
+            statusHistory: [{ status: 'Placed', at: placedAt }],
             paymentMethod: 'counter',
-            paymentStatus: 'unpaid'
+            paymentStatus: 'unpaid',
+            estimateMinutes: estimate.minutes,
+            estimatedReadyAt: PickupEstimate.readyAtFrom(placedAt, estimate.minutes),
+            estimateSource: 'auto',
+            estimateUpdatedAt: placedAt,
+            timestamp: placedAt,
         });
         const savedOrder = await newOrder.save();
         await User.findByIdAndUpdate(userId, { $push: { orders: savedOrder._id } });

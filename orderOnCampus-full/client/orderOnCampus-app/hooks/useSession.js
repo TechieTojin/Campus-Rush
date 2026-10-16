@@ -1,11 +1,13 @@
 import { CommonActions, createNavigationContainerRef } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { showToast } from '../components/ui/feedback';
+import { notify } from '../components/ui/sheet';
 import { addFavorite, clearSession, errorMessage, fetchMe, removeFavorite } from '../services/api';
 import { clearUser, selectUser, setUser } from '../slices/AuthSlice';
 import { emptyCart } from '../slices/CartSlice';
+import { clearLocalCart } from '../services/storage';
+import { clearRecent } from './useRecent';
 import { store } from '../store';
 
 export const navigationRef = createNavigationContainerRef();
@@ -20,6 +22,9 @@ export async function signOut() {
   await clearSession();
   store.dispatch(clearUser());
   store.dispatch(emptyCart());
+  // Device-local conveniences belong to the signed-in student; don't leave them for the next person.
+  clearRecent();
+  clearLocalCart();
   resetTo('Login');
 }
 
@@ -28,7 +33,7 @@ export async function handleSessionExpired() {
   if (expiring) return;
   expiring = true;
   await signOut();
-  Alert.alert('Session expired', 'Please sign in again to continue.');
+  notify({ title: 'Session expired', message: 'For your security, please sign in again to continue.', confirmLabel: 'Sign in', icon: 'lock' });
   setTimeout(() => { expiring = false; }, 1500);
 }
 
@@ -56,9 +61,9 @@ export function useFavorite(canteenId) {
       else await addFavorite(canteenId);
       const fresh = await fetchMe();
       dispatch(setUser(fresh));
-      showToast(isFavorite ? `Removed ${canteenName || 'canteen'} from favorites` : `Saved ${canteenName || 'canteen'} to favorites`, 'heart');
+      showToast(isFavorite ? `Removed ${canteenName || 'canteen'} from saved` : `Saved ${canteenName || 'canteen'}`, 'heart');
     } catch (e) {
-      if (e?.response?.status !== 401) Alert.alert('Favorites', errorMessage(e));
+      if (e?.response?.status !== 401) showToast(errorMessage(e), 'alert-circle');
     } finally {
       setBusy(false);
     }

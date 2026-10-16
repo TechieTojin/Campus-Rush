@@ -1,7 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiAlertCircle, FiCheck, FiCreditCard, FiExternalLink, FiMapPin, FiRotateCcw, FiUser } from 'react-icons/fi';
-import { api, TRANSITIONS } from '../lib/api';
+import { FiAlertCircle, FiCheck, FiClock, FiCreditCard, FiExternalLink, FiMapPin, FiMessageSquare, FiRotateCcw, FiUser } from 'react-icons/fi';
+import { api, errorMessage, TRANSITIONS } from '../lib/api';
+import { useToast } from './ui/useToast';
 import { ACTION_LABEL, STATUS } from '../lib/constants';
 import { useAsync } from '../lib/hooks';
 import { useCanteenId, useSession } from '../lib/sessionContext';
@@ -69,12 +70,31 @@ export function OrderLines({ order }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-divider">
-          {order.lines.map((l) => (
-            <tr key={String(l.item)}>
-              <td className="py-2.5 pr-2 font-medium text-ink">{l.name}</td>
-              <td className="py-2.5 text-center tabular font-semibold">{l.quantity}</td>
-              <td className="py-2.5 text-right tabular text-muted">{l.price != null ? money(l.price) : '—'}</td>
-              <td className="py-2.5 text-right tabular font-semibold">{l.price != null ? money(l.price * l.quantity) : '—'}</td>
+          {order.lines.map((l, i) => (
+            <tr key={`${String(l.item)}-${i}`}>
+              <td className="py-2.5 pr-2 font-medium text-ink align-top">
+                {l.name}
+                {/* Exactly what the kitchen has to make, as chosen when the order was placed. */}
+                {(l.selections || []).length ? (
+                  <ul className="mt-1 space-y-0.5">
+                    {l.selections.map((s, j) => (
+                      <li key={`${s.groupName}-${s.label}-${j}`} className="text-[12.5px] text-muted">
+                        <span className="text-faint">{s.groupName}:</span> <span className="font-medium text-body">{s.label}</span>
+                        {s.priceDelta ? <span className="tabular text-faint"> +{money(s.priceDelta)}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {l.instructions ? (
+                  <p className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-saffron-50 border border-saffron-200 px-2 py-1.5 text-[12.5px] text-ink">
+                    <FiMessageSquare className="h-3.5 w-3.5 shrink-0 mt-0.5 text-saffron-600" aria-hidden />
+                    <span><span className="font-semibold">Note:</span> {l.instructions}</span>
+                  </p>
+                ) : null}
+              </td>
+              <td className="py-2.5 text-center tabular font-semibold align-top">{l.quantity}</td>
+              <td className="py-2.5 text-right tabular text-muted align-top">{l.price != null ? money(l.price) : '—'}</td>
+              <td className="py-2.5 text-right tabular font-semibold align-top">{l.price != null ? money(l.price * l.quantity) : '—'}</td>
             </tr>
           ))}
         </tbody>
@@ -113,6 +133,90 @@ function Timeline({ order }) {
   );
 }
 
+// Pickup time: what the student was told, what actually happened, and the controls to change it.
+// Only meaningful while the food is still being made, so the controls disappear afterwards.
+export function PickupTimePanel({ order, onChanged }) {
+  const canteenId = useCanteenId();
+  const toast = useToast();
+  const [busy, setBusy] = useState('');
+  const [custom, setCustom] = useState('');
+  const editable = ['Placed', 'Processing'].includes(order.status);
+
+  const apply = async (body, label) => {
+    setBusy(label);
+    try {
+      await api.setEstimate(canteenId, order._id, body);
+      toast.success('The student sees the new time straight away.', { title: 'Pickup time updated' });
+      setCustom('');
+      onChanged?.();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const estimated = order.estimatedReadyAt ? new Date(order.estimatedReadyAt) : null;
+  const minutesOut = estimated ? Math.round((estimated.getTime() - Date.now()) / 60000) : null;
+
+  return (
+    <div className="rounded-xl border border-line p-4">
+      <h3 className="font-bold mb-3 flex items-center gap-1.5"><FiClock className="h-4 w-4 text-muted" aria-hidden />Pickup time</h3>
+      <dl className="grid grid-cols-2 gap-3">
+        <KeyValue label="Told the student">
+          {estimated ? `${formatTime(estimated)}${minutesOut > 0 ? ` (in ${minutesOut} min)` : ''}` : 'No estimate'}
+        </KeyValue>
+        <KeyValue label="Source">{order.estimateSource === 'staff' ? 'Set by your canteen' : 'Calculated'}</KeyValue>
+        <KeyValue label="Actually ready">{order.readyAt ? formatTime(order.readyAt) : '—'}</KeyValue>
+        <KeyValue label="Collected">{order.collectedAt ? formatTime(order.collectedAt) : '—'}</KeyValue>
+      </dl>
+      {order.prepDelayMinutes ? (
+        <p className="text-[12.5px] text-muted mt-2">A delay of {order.prepDelayMinutes} min has been announced on this order.</p>
+      ) : null}
+
+      {editable ? (
+        <div className="mt-4 space-y-3 border-t border-divider pt-3">
+          <div>
+            <p className="text-[12px] font-bold uppercase tracking-wide text-faint mb-2">Running late?</p>
+            <div className="flex flex-wrap gap-2">
+              {[5, 10, 15].map((n) => (
+                <Button key={n} size="sm" variant="secondary" loading={busy === `d${n}`} disabled={!!busy} onClick={() => apply({ addDelay: n }, `d${n}`)}>
+                  +{n} min
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-[12px] font-bold uppercase tracking-wide text-faint mb-2">Or set a new time</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="number"
+                min="3"
+                max="120"
+                value={custom}
+                onChange={(e) => setCustom(e.target.value)}
+                placeholder="20"
+                aria-label="Ready in how many minutes"
+                className="input w-24"
+              />
+              <span className="text-[13px] text-muted">minutes from now</span>
+              <Button
+                size="sm"
+                loading={busy === 'set'}
+                disabled={!!busy || !custom || Number(custom) < 3 || Number(custom) > 120}
+                onClick={() => apply({ minutes: Number(custom) }, 'set')}
+              >
+                Update
+              </Button>
+            </div>
+          </div>
+          <p className="text-[12.5px] text-muted">This is an estimate shown to the student — marking the order Ready is what actually tells them to come.</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function OrderDetail({ order, actions, compact }) {
   const { canteen } = useSession();
   return (
@@ -148,6 +252,7 @@ export function OrderDetail({ order, actions, compact }) {
       </div>
 
       <div className={`grid grid-cols-1 gap-4 ${compact ? '' : 'md:grid-cols-2'}`}>
+        <PickupTimePanel order={order} onChanged={actions?.refresh} />
         <div className="rounded-xl border border-line p-4">
           <h3 className="font-bold mb-3">Status history</h3>
           <Timeline order={order} />

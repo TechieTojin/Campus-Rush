@@ -86,6 +86,15 @@ export const api = {
   setStatus: (id, status) => data(http.put(`/orders/${id}/status`, { status })),
   setPayment: (cid, id, paid) => data(http.put(`/staff/canteens/${cid}/orders/${id}/payment`, { paid })).then((r) => r.data),
 
+  // ---- pickup time (V4). `minutes` resets the estimate; `addDelay` pushes it back.
+  setEstimate: (cid, id, body) => data(http.put(`/staff/canteens/${cid}/orders/${id}/estimate`, body)).then((r) => r.data),
+
+  // ---- QR pickup (V4)
+  // verify() only reads, so staff can check payment before releasing the order; collect()
+  // consumes the credential and completes the order in one atomic step on the server.
+  verifyPickup: (cid, code) => data(http.post(`/staff/canteens/${cid}/pickup/verify`, { code })).then((r) => r.data),
+  collectPickup: (cid, body) => data(http.post(`/staff/canteens/${cid}/pickup/collect`, body)).then((r) => r.data),
+
   customers: (cid) => data(http.get(`/staff/canteens/${cid}/customers`)).then((r) => r.data),
   customerOrders: (cid, uid) => data(http.get(`/staff/canteens/${cid}/customers/${uid}/orders`)).then((r) => r.data),
 

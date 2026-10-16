@@ -59,11 +59,22 @@ export const orderLines = (order = {}) => {
   if (order.lineItems?.length) {
     const images = new Map((order.items || []).filter(i => i && i._id).map(i => [String(i._id), i.image]));
     return {
-      lines: order.lineItems.map(l => ({ _id: String(l.item), name: l.name, price: l.price, quantity: l.quantity, image: images.get(String(l.item)) })),
+      lines: order.lineItems.map(l => ({
+        _id: String(l.item),
+        name: l.name,
+        price: l.price,
+        quantity: l.quantity,
+        image: images.get(String(l.item)),
+        // Customisation snapshot (V4); empty on older orders.
+        selections: l.selections || [],
+        instructions: l.instructions || '',
+        basePrice: typeof l.basePrice === 'number' ? l.basePrice : l.price,
+        addonsTotal: typeof l.addonsTotal === 'number' ? l.addonsTotal : 0,
+      })),
       snapshot: true,
     };
   }
-  return { lines: groupOrderItems(order.items), snapshot: false };
+  return { lines: groupOrderItems(order.items).map(l => ({ ...l, selections: [], instructions: '' })), snapshot: false };
 };
 
 export const summarizeOrder = (order) => orderLines(order).lines.map(i => `${i.quantity}× ${i.name}`).join(', ');
@@ -78,33 +89,50 @@ export const openingHours = (canteen = {}) =>
   canteen.openingTime && canteen.closingTime ? `${formatClock(canteen.openingTime)} – ${formatClock(canteen.closingTime)}` : '';
 
 const FOOD_RULES = [
-  { re: /biryani|pulao|rice|meals|thali|khichdi/i, icon: 'rice', tint: '#FFF1DE', color: '#C9761A' },
-  { re: /cold coffee|frappe|shake|smoothie|juice|lime|soda|cola|mojito|lassi/i, icon: 'bottle-soda', tint: '#E6F2FB', color: '#2B6CA3' },
-  { re: /coffee|latte|cappuccino|espresso|mocha/i, icon: 'coffee', tint: '#F3E9E1', color: '#7A4A2A' },
-  { re: /tea|chai/i, icon: 'tea', tint: '#EEF5E4', color: '#5A7A2A' },
-  { re: /dosa|idli|vada|uttapam|upma|pongal|appam/i, icon: 'pot-steam', tint: '#FDF0D9', color: '#B8741A' },
-  { re: /paratha|roti|chapati|naan|kulcha|puri/i, icon: 'bread-slice', tint: '#FBEBDD', color: '#A85F2A' },
-  { re: /pizza/i, icon: 'pizza', tint: '#FDE8E3', color: '#C2452D' },
-  { re: /burger|sandwich|wrap|roll|frankie/i, icon: 'hamburger', tint: '#FDEEDC', color: '#B4651E' },
-  { re: /noodle|pasta|maggi|chowmein/i, icon: 'noodles', tint: '#FFF4D6', color: '#A98410' },
-  { re: /egg|omelette/i, icon: 'egg-fried', tint: '#FFF7D9', color: '#B08A12' },
-  { re: /chicken|mutton|fish|kebab|tikka/i, icon: 'food-drumstick', tint: '#FBE7DF', color: '#B04A2A' },
-  { re: /cake|pastry|brownie|muffin|cookie|donut/i, icon: 'cupcake', tint: '#FCE8F0', color: '#B23F73' },
-  { re: /ice ?cream|sundae|kulfi/i, icon: 'ice-cream', tint: '#F1EAFB', color: '#7047B8' },
-  { re: /puff|croissant|bun|bread|samosa|pakora|bajji/i, icon: 'food-croissant', tint: '#FBEBDD', color: '#A85F2A' },
-  { re: /salad|fruit|bowl/i, icon: 'bowl-mix', tint: '#E8F5E9', color: '#2F7A3A' },
+  { re: /biryani|pulao|rice|meals|thali|khichdi/i, label: 'Biryani & rice', icon: 'rice', tint: '#FFF1DE', color: '#C9761A' },
+  { re: /cold coffee|frappe|shake|smoothie|juice|lime|soda|cola|mojito|lassi/i, label: 'Cold drinks', icon: 'bottle-soda', tint: '#E4EFEB', color: '#1E6B5D' },
+  { re: /coffee|latte|cappuccino|espresso|mocha/i, label: 'Coffee', icon: 'coffee', tint: '#F4E7DD', color: '#8A4B27' },
+  { re: /tea|chai/i, label: 'Tea', icon: 'tea', tint: '#E4EFEB', color: '#1E6B5D' },
+  { re: /dosa|idli|vada|uttapam|upma|pongal|appam/i, label: 'Dosa & South Indian', icon: 'pot-steam', tint: '#FDF0D9', color: '#B8741A' },
+  { re: /paratha|roti|chapati|naan|kulcha|puri/i, label: 'Breads', icon: 'bread-slice', tint: '#FBEBDD', color: '#A85F2A' },
+  { re: /pizza/i, label: 'Pizza', icon: 'pizza', tint: '#F7E4DA', color: '#B5532F' },
+  { re: /burger|sandwich|wrap|roll|frankie/i, label: 'Burgers & sandwiches', icon: 'hamburger', tint: '#FDEEDC', color: '#B4651E' },
+  { re: /noodle|pasta|maggi|chowmein/i, label: 'Noodles & pasta', icon: 'noodles', tint: '#FFF4D6', color: '#A98410' },
+  { re: /egg|omelette/i, label: 'Egg dishes', icon: 'egg-fried', tint: '#FFF7D9', color: '#B08A12' },
+  { re: /chicken|mutton|fish|kebab|tikka/i, label: 'Chicken & meat', icon: 'food-drumstick', tint: '#F7E4DA', color: '#B5532F' },
+  { re: /cake|pastry|brownie|muffin|cookie|donut/i, label: 'Desserts', icon: 'cupcake', tint: '#F7E4DA', color: '#B5532F' },
+  { re: /ice ?cream|sundae|kulfi/i, label: 'Ice cream', icon: 'ice-cream', tint: '#F7E4DA', color: '#B5532F' },
+  { re: /puff|croissant|bun|bread|samosa|pakora|bajji/i, label: 'Snacks & bakes', icon: 'food-croissant', tint: '#FBEBDD', color: '#A85F2A' },
+  { re: /salad|fruit|bowl/i, label: 'Salads & bowls', icon: 'bowl-mix', tint: '#E4EFEB', color: '#1E6B5D' },
 ];
+
+// Craving groups that actually have dishes on today's menus (derived from dish names, never invented).
+export const cravings = (entries = []) => {
+  const groups = new Map();
+  entries.forEach((e) => {
+    if (!e?.item?.available) return;
+    const rule = FOOD_RULES.find(r => r.re.test(e.item.name));
+    if (!rule) return;
+    const g = groups.get(rule.label) || { ...rule, count: 0, sample: e.item.name, names: [] };
+    g.count += 1;
+    g.names.push(e.item.name);
+    groups.set(rule.label, g);
+  });
+  return [...groups.values()].sort((a, b) => b.count - a.count);
+};
+
+export const matchesCraving = (label, name = '') => !!FOOD_RULES.find(r => r.label === label)?.re.test(name);
 
 export const foodVisual = (name = '') =>
-  FOOD_RULES.find(r => r.re.test(name)) || { icon: 'silverware-fork-knife', tint: '#E1F0EE', color: '#0E6B6B' };
+  FOOD_RULES.find(r => r.re.test(name)) || { icon: 'silverware-fork-knife', tint: '#DDEBE6', color: '#0F4C42' };
 
+// Brand-family cover palettes (evergreen, ink, clay, marigold) so placeholder covers never clash.
 const CANTEEN_PALETTES = [
-  { bg: '#0E6B6B', fg: '#BFE3DF' },
-  { bg: '#B4561F', fg: '#F6CFAE' },
-  { bg: '#3D4F8C', fg: '#C4CDF0' },
-  { bg: '#6B4E9B', fg: '#D9CCF0' },
-  { bg: '#2F6B3A', fg: '#BFE2C5' },
-];
+  { bg: '#0F4C42', fg: '#9FCFC2' },
+  { bg: '#1D2A27', fg: '#F5A524' },
+  { bg: '#9C4628', fg: '#F7D2BF' },
+  { bg: '#C98411', fg: '#FFF0D2' },
+]
 
 export const canteenVisual = (canteen = {}) => {
   const key = `${canteen.name || ''}${canteen._id || ''}`;

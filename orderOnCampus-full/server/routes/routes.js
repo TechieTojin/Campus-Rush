@@ -9,6 +9,7 @@ const Manage = require('../controllers/manageController')
 const Upload = require('../controllers/uploadController')
 const Content = require('../controllers/contentController')
 const Support = require('../controllers/supportController')
+const Pickup = require('../controllers/pickupController')
 const Auth = require('../middleware/auth')
 const rateLimit = require('../lib/rateLimit')
 const realtime = require('../lib/realtime')
@@ -20,6 +21,10 @@ const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, failuresOnly: 
 const setupLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, failuresOnly: true });
 const ticketLimit = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, message: 'You’ve sent several requests recently. Please wait before sending another.' });
 const uploadLimit = rateLimit({ windowMs: 60 * 1000, max: 30 });
+// A student refreshes their pickup QR every few minutes; a busy counter scans often. Both are
+// generous enough not to get in the way, tight enough to stop anyone hammering the endpoints.
+const pickupIssueLimit = rateLimit({ windowMs: 60 * 1000, max: 30 });
+const pickupScanLimit = rateLimit({ windowMs: 60 * 1000, max: 120 });
 
 // Staff mutations use the cookie session, so they also need the CSRF header.
 const staffCsrf = Auth.csrf('staff_csrf');
@@ -83,6 +88,11 @@ router.get(`${base}/orders`, own, Manage.listOrders);
 router.get(`${base}/orders/live`, own, Manage.liveOrders);
 router.get(`${base}/orders/:orderId`, own, Manage.getOrder);
 router.put(`${base}/orders/:orderId/payment`, own, paymentChanged, Manage.setPayment);
+// Pickup estimate: any staff role can adjust it, like order status and payment.
+router.put(`${base}/orders/:orderId/estimate`, own, Pickup.setEstimate);
+// QR pickup. `verify` only reads; `collect` consumes the credential and completes the order.
+router.post(`${base}/pickup/verify`, own, pickupScanLimit, Pickup.verify);
+router.post(`${base}/pickup/collect`, own, pickupScanLimit, Pickup.collect);
 router.get(`${base}/customers`, own, Manage.customers);
 router.get(`${base}/customers/:userId/orders`, own, Manage.customerOrders);
 router.get(`${base}/activity`, own, Manage.activity);
@@ -124,6 +134,8 @@ router.put('/users/me', Auth.verifyStudent, Auth.requireActiveStudent, UserContr
 router.put('/users/me/password', Auth.verifyStudent, rateLimit({ windowMs: 15 * 60 * 1000, max: 10 }), UserController.changePassword);
 // Place order (suspended students are refused)
 router.post('/users/place-order', Auth.verifyStudent, Auth.requireActiveStudent, UserController.placeOrder);
+// Short-lived QR pickup credential for one of the student's own orders.
+router.post('/users/orders/:orderId/pickup-token', Auth.verifyStudent, pickupIssueLimit, Pickup.issueToken);
 // Student-facing announcements and support
 router.get('/users/announcements', Auth.verifyStudent, Content.studentAnnouncements);
 router.get('/users/support', Auth.verifyStudent, Support.studentList);
